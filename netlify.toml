@@ -1,0 +1,42 @@
+# Netlify deployment configuration for Eswatini Cars
+# https://docs.netlify.com/configure-builds/file-based-configuration/
+
+[build]
+  command = "bun run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"
+  NEXT_USE_NETLIFY_EDGE = "true"
+
+# Use the Next.js Runtime plugin (auto-detected by Netlify)
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Force all /api/* routes to be server-rendered (not statically exported)
+# This is handled automatically by the Next.js plugin when output is not "export"
+
+# Serve .well-known/assetlinks.json with correct MIME type (Android TWA requirement)
+[[headers]]
+  for = "/.well-known/assetlinks.json"
+  [headers.values]
+    Content-Type = "application/json; charset=utf-8"
+    Access-Control-Allow-Origin = "*"
+
+# APK download — force download instead of inline display + cross-origin access
+[[headers]]
+  for = "/Eswatini-Cars.apk"
+  [headers.values]
+    Content-Type = "application/vnd.android.package-archive"
+    Content-Disposition = "attachment; filename=\"Eswatini-Cars.apk\""
+    Access-Control-Allow-Origin = "*"
+    Cache-Control = "public, max-age=3600"
+
+# Security headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"

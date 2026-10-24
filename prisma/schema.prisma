@@ -1,0 +1,63 @@
+// ESWATINI CARS — Managed Vehicle Marketplace
+// Prisma schema — Turso (libSQL) backend via driver adapter
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+  binaryTargets   = ["native", "rhel-openssl-3.0.x", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "sqlite"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL")
+}
+
+model Listing {
+  id           String      @id @default(cuid())
+  type         String      // "car" | "bakkie" | "van" | "bike" | "part"
+  make         String
+  model        String
+  year         Int
+  price        Float
+  currency     String      @default("SZL")
+  fuelType     String
+  transmission String
+  mileage      Int         @default(0)
+  color        String?
+  description  String
+  imageUrl     String?
+  region       String
+  sellerName   String
+  sellerPhone  String      // private — only admin sees this
+  sellerEmail  String?
+  status       String      @default("active") // "active" | "sold" | "pending"
+  featured     Boolean     @default(false)
+  views        Int         @default(0)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  enquiries    Enquiry[]
+}
+
+model Enquiry {
+  id          String    @id @default(cuid())
+  listingId   String
+  listing     Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  buyerName   String
+  buyerPhone  String
+  buyerEmail  String?
+  message     String
+  status      String   @default("new") // "new" | "contacted" | "viewing" | "sold" | "lost"
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  messages    Message[]
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  enquiryId  String
+  enquiry    Enquiry  @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  sender     String   // "broker" | "buyer"
+  text       String
+  createdAt  DateTime @default(now())
+}

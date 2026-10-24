@@ -1,0 +1,87 @@
+# === ESWATINI CARS — .gitignore ===
+# Comprehensive list of files that should NEVER be committed to git.
+# These contain either secrets (tokens, API keys, passwords) or
+# build artifacts that bloat the repo.
+
+# --- Dependencies ---
+node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# --- Next.js ---
+/.next/
+/out/
+next-env.d.ts
+*.tsbuildinfo
+
+# --- Environment files (CONTAIN SECRETS) ---
+.env
+.env.local
+.env.production
+.env.development
+.env.preview
+.env*.local
+
+# --- Vercel / Netlify local config ---
+.vercel
+.netlify
+
+# --- Build artifacts ---
+/build
+/coverage
+*.pem
+
+# --- Debug logs ---
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.log
+dev.log
+dev.out.log
+server.log
+
+# --- Misc ---
+.DS_Store
+.claude
+.z-ai-config
+local-*
+test
+prompt
+
+# === PROJECT-SPECIFIC IGNORES ===
+
+# --- Skills directory (development-only, not part of app) ---
+/skills/
+
+# --- Examples + mini-services (development demos, not part of app) ---
+/examples/
+/mini-services/
+/.zscripts/
+
+# --- Local SQLite database (dev only — production uses Turso) ---
+db/
+
+# --- Uploaded files (user-generated content at runtime) ---
+uploads/
+public/uploads/
+upload/
+
+# --- APK binary (hosted externally on GoFile, not in git) ---
+public/Eswatini-Cars.apk
+*.apk
+*.aab
+*.idsig
+
+# --- Android APK build artifacts (CONTAINS KEYSTORE WITH PRIVATE KEY) ---
+android-apk/
+tool-results/
+
+# --- Download folder (contains signed APKs, PDFs with secrets, zip backups) ---
+# These are deliverables — not source code. Distribute manually, don't commit.
+/download/
