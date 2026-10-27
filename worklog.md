@@ -664,3 +664,117 @@ Stage Summary:
 - ✅ FULL FLOW VERIFIED: Login dialog → API auth → Admin Dashboard → PIN unlock → Broker Dashboard
 - ✅ NO REGRESSIONS: non-admin email + password flow still works (returns "Email not found" for unregistered users, which is correct)
 - User should hard-reload the app (Chrome: long-press reload → Hard reload) to pick up the new SW v6 immediately, or wait ~24h for auto-update
+
+---
+Task ID: vehicle-requests-persistence-edit-delete-1
+Agent: main
+Task: Fix "request disappears after refresh" + add edit/delete + make user's own requests easily findable.
+
+Work Log:
+User reported:
+1. After user posts a request, request disappears after refresh of app.
+2. Make user's requests "savable" so they can easily find their own among the public list.
+3. Make requests deletable.
+4. Make requests editable in case user changes his mind.
+
+Root cause of persistence bug:
+- submitRequest only did `setVehicleRequests(prev => [newRequest, ...prev])` — added to local React state with a fake client-side id (req-${Date.now()}).
+- No useEffect was fetching requests from the API on mount.
+- Result: on refresh, React state is wiped, request is gone (it was never persisted to DB).
+
+Fixes (commits 78d0dcf + 3c4a94b + e5ee57b):
+
+1. submitRequest now POSTs to /api/requests:
+   - Server creates the record in Turso DB with a real cuid id + timestamp
+   - Then fetchVehicleRequests() re-syncs local state from server
+   - Old 'fake client-side id' code path is gone
+   - Form also pre-fills the logged-in user's name/email/phone via openNewRequest()
+
+2. New useEffect on mount + 30s auto-refresh:
+   - Calls fetchVehicleRequests on mount (so users see existing requests immediately)
+   - Sets up setInterval to call it every 30 seconds (matches listings refresh)
+   - This is what makes "My Requests" actually persist across refreshes
+   - Placement: AFTER fetchVehicleRequests definition. Putting it earlier caused a temporal-dead-zone error during production build: "Cannot access bK before initialization" — fixed by moving the useEffect below the useCallback.
+
+3. New /api/requests/[id] route (src/app/api/requests/[id]/route.ts):
+   - PATCH: updates fields (requesterName, vehicleType, make, model, minBudget, maxBudget, fuelType, transmission, region, description, requesterPhone)
+   - DELETE: removes the request from DB
+   - Both enforce ownership via session cookie:
+     * 401 if not logged in
+     * 403 if logged in but not the original requester (and not admin)
+     * 404 if request not found
+   - Status field is NOT editable by users (admin-only via dashboard)
+   - requesterEmail is NOT editable (would let users 'steal' a request by changing ownership)
+
+4. Edit + Delete buttons in My Requests UI:
+   - Each request card now has an Edit button (sky color, opens form pre-filled) and a Delete button (red color, with confirmation prompt)
+   - Delete shows 'Deleting...' state on the button while the API call is in flight
+   - On success, optimistically removes from local state for instant feedback; next 30s fetch reconciles with server
+   - Edit uses same dialog as Create (openEditRequest pre-fills form, sets editingRequestId)
+
+5. Edit mode in Vehicle Request dialog:
+   - Same dialog used for create + edit
+   - editingRequestId state distinguishes between the two
+   - Email field is disabled in edit mode (with hint: "Email cannot be changed (used to verify ownership)")
+   - Submit button label changes: 'Submit request' (create) vs 'Save changes' (edit)
+   - Dialog title: 'Vehicle Request' (create) vs 'Edit Request' (edit)
+   - Success message: 'Request submitted!' (create) vs 'Request updated!' (edit)
+
+6. Fixed drawer's "My Requests" button:
+   - Was calling setView('requests') (public Vehicle Requests view, shows ALL requests)
+   - Now calls setView('myrequests') (the user's own requests)
+   - Updated styling to match Saved Vehicles pattern: faint + greyed-out when logged out, with subtitle "Log in to view your requests" or "X requests submitted"
+
+7. openNewRequest helper:
+   - Pre-fills the form with the logged-in user's name/email/phone
+   - Clears any previous edit state
+   - Used by all 'New Request' buttons (drawer, public Requests view, My Requests view) so they all behave consistently
+
+8. VehicleRequest type updated to reflect DB schema:
+   - make, model, minBudget, maxBudget, description, requesterPhone are now correctly typed as `string | null` (they're nullable in the Prisma schema)
+
+9. Bumped sw.js CACHE_NAME: v6 → v7 → v8 so the new bundle ships to every device.
+
+Deploy:
+- Commit 78d0dcf: feat(requests): persist to DB + add edit/delete + fix refresh bug
+- Commit 3c4a94b: fix(drawer): make 'My Requests' button actually go to My Requests view
+- Commit e5ee57b: chore(sw): bump cache version v7 -> v8
+- Deploy URL: https://eswatini-cars-mczjnemdj-eswatini-cars.vercel.app → aliased to https://eswatini-cars.vercel.app
+
+Verification (all 4 user-reported issues):
+
+1. ✅ Persistence — created a request via UI, reloaded page, request still shows in My Requests
+   (Confirmed via API: request was in DB with proper cuid id + timestamps)
+
+2. ✅ "Make sure user is able to save requests he has made as easy reference"
+   - My Requests view (drawer → My Requests button) shows ONLY the user's own requests
+   - Subtitle now reads: "X request(s) submitted. Your requests are saved here for easy reference — even after closing the app."
+   - Drawer button shows count of user's own requests (myRequests.length), not all requests
+   - Even after closing/reopening the app, requests persist (because they're in the DB, not just local state)
+
+3. ✅ Edit — clicked Edit button on a request:
+   - Form opened pre-filled with all current values
+   - Title changed to "Edit Request"
+   - Email field disabled with hint
+   - Submit button label changed to "Save changes"
+   - Changed Make from "Nissan" to "Toyota"
+   - Clicked Save → success message "Request updated!"
+   - Verified via API: updatedAt timestamp changed, make field updated
+
+4. ✅ Delete — clicked Delete button on a request:
+   - Confirmation prompt appeared ("Delete this request? This cannot be undone.")
+   - Button showed "Deleting..." state during API call
+   - On success, request removed from list immediately
+   - Verified via API: request no longer in DB
+
+5. ✅ Auth enforcement:
+   - PATCH without session cookie → 401 "You must be logged in to edit a request."
+   - DELETE without session cookie → 401 "You must be logged in to delete a request."
+   - (Implicit: only the original requester or admin can edit/delete — server enforces)
+
+Stage Summary:
+- ✅ ALL 4 USER-REPORTED ISSUES FIXED
+- ✅ DEPLOY COMPLETE: https://eswatini-cars.vercel.app
+- ✅ NEW ROUTE ADDED: /api/requests/[id] (PATCH + DELETE with ownership enforcement)
+- ✅ NO REGRESSIONS: existing features untouched (other state, API routes, styling all preserved)
+- User should hard-reload the app (Chrome: long-press reload → Hard reload) to pick up the new SW v8 immediately, or wait ~24h for auto-update
