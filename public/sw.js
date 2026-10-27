@@ -2,14 +2,18 @@
 // Provides offline caching for the app shell
 //
 // VERSION HISTORY:
-//   v3 (2026-10-27): Force cache invalidation — previous deploys left stale JS
-//                     chunks on user devices that crashed the page on hydration.
-//                     New SW deletes the v2 cache on activation, so all users get
-//                     a clean fetch on next load.
+//   v4 (2026-10-27 PM): Fix "r.filter is not a function" — root caused to a
+//                       non-array cachedListings value in localStorage (likely
+//                       written by a pre-Vercel build of the app). Page.tsx
+//                       initializers now validate Array.isArray before use.
+//   v3 (2026-10-27 AM): Force cache invalidation — previous deploys left stale JS
+//                       chunks on user devices that crashed the page on hydration.
+//                       New SW deletes the v2 cache on activation, so all users get
+//                       a clean fetch on next load.
 //   v2: initial SW for the Vercel-hosted app
 //   v1: legacy SW from the Netlify-hosted app
 
-const CACHE_NAME = 'eswatini-cars-v3';
+const CACHE_NAME = 'eswatini-cars-v4';
 const APP_SHELL = [
   '/',
   '/manifest.json',

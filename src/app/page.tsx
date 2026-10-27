@@ -427,8 +427,17 @@ export default function Home() {
     if (typeof window === 'undefined') return []
     try {
       const cached = window.localStorage.getItem('cachedListings')
-      return cached ? JSON.parse(cached) : []
+      if (!cached) return []
+      const parsed = JSON.parse(cached)
+      // Defensive: a previous deploy may have written a non-array shape
+      // (e.g. an object, a string, or null) into cachedListings. If we blindly
+      // trust it, listings.filter(...) crashes with "r.filter is not a function"
+      // on next render and the whole page falls over.
+      return Array.isArray(parsed) ? parsed : []
     } catch {
+      // Bad JSON — clear it so we don't keep tripping over the same value
+      // on every page load.
+      try { window.localStorage.removeItem('cachedListings') } catch {}
       return []
     }
   })
@@ -452,8 +461,11 @@ export default function Home() {
     if (typeof window === 'undefined') return []
     try {
       const s = window.localStorage.getItem('savedCars')
-      return s ? JSON.parse(s) : []
+      if (!s) return []
+      const parsed = JSON.parse(s)
+      return Array.isArray(parsed) ? parsed : []
     } catch {
+      try { window.localStorage.removeItem('savedCars') } catch {}
       return []
     }
   })
@@ -497,8 +509,13 @@ export default function Home() {
     if (typeof window === 'undefined') return []
     try {
       const s = window.localStorage.getItem('dismissedBroadcasts')
-      return s ? JSON.parse(s) : []
-    } catch { return [] }
+      if (!s) return []
+      const parsed = JSON.parse(s)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      try { window.localStorage.removeItem('dismissedBroadcasts') } catch {}
+      return []
+    }
   })
 
   // === FIREBASE PHONE OTP (register flow) ===
@@ -511,8 +528,13 @@ export default function Home() {
     if (typeof window === 'undefined') return []
     try {
       const s = window.localStorage.getItem('recentlyViewed')
-      return s ? JSON.parse(s) : []
-    } catch { return [] }
+      if (!s) return []
+      const parsed = JSON.parse(s)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      try { window.localStorage.removeItem('recentlyViewed') } catch {}
+      return []
+    }
   })
 
   // === PRICE DROP ALERTS ===
@@ -553,15 +575,20 @@ export default function Home() {
       const res = await fetch(url, { cache: 'no-store' })
       if (!res.ok) throw new Error(`API returned ${res.status}`)
       const data = await res.json()
+      // Defensive: API should return { listings: [...] } but a previous deploy
+      // (or a proxy/CDN cache miss) could return an error object, null, or
+      // just {}. If we blindly trust data.listings and it's not an array,
+      // listings.filter(...) crashes with "r.filter is not a function".
+      const fetched: Listing[] = Array.isArray(data?.listings) ? data.listings : []
       // Cache the freshly fetched listings in localStorage so the UI shows
       // something instantly on next mount instead of an empty grid.
       try {
-        if (data.listings?.length) {
-          window.localStorage.setItem('cachedListings', JSON.stringify(data.listings))
+        if (fetched.length) {
+          window.localStorage.setItem('cachedListings', JSON.stringify(fetched))
         }
       } catch {}
       // Apply local sort (server already orders by featured desc, createdAt desc)
-      let filtered: Listing[] = data.listings || []
+      let filtered: Listing[] = fetched
       if (sortBy === 'price-low') filtered.sort((a, b) => a.price - b.price)
       else if (sortBy === 'price-high') filtered.sort((a, b) => b.price - a.price)
       // 'recent' is default order from server
@@ -658,8 +685,20 @@ export default function Home() {
   const checkPriceDrops = useCallback((fresh: Listing[]) => {
     try {
       const cachedRaw = window.localStorage.getItem('cachedListings')
-      if (!cachedRaw) return
-      const cached: Listing[] = JSON.parse(cachedRaw)
+      if (!cachedRaw) {
+        // No prior cache — just persist the fresh snapshot so the next run
+        // has something to diff against.
+        window.localStorage.setItem('cachedListings', JSON.stringify(fresh))
+        return
+      }
+      const parsed = JSON.parse(cachedRaw)
+      // Defensive: if a previous deploy left a non-array in cachedListings
+      // (object, string, null), don't crash on .map() below — just overwrite.
+      if (!Array.isArray(parsed)) {
+        window.localStorage.setItem('cachedListings', JSON.stringify(fresh))
+        return
+      }
+      const cached: Listing[] = parsed
       const cachedMap = new Map(cached.map(l => [l.id, l.price]))
       const drops: Array<{ id: string; make: string; model: string; oldPrice: number; newPrice: number; imageUrl: string | null }> = []
       for (const l of fresh) {
@@ -671,7 +710,11 @@ export default function Home() {
       // Persist the freshest snapshot so the *next* run can diff against it.
       window.localStorage.setItem('cachedListings', JSON.stringify(fresh))
       if (drops.length > 0) setPriceDrops(drops)
-    } catch {}
+    } catch {
+      // Bad JSON or storage disabled — clear and move on so the user isn't
+      // stuck with a poisoned cache forever.
+      try { window.localStorage.removeItem('cachedListings') } catch {}
+    }
   }, [])
 
   // Send an OTP to the user's phone via Firebase phone auth (recaptcha-less if available).
@@ -938,10 +981,13 @@ export default function Home() {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.error || `API returned ${res.status}`)
       }
-      // Remove from local state immediately for instant UI feedback
-      setUserListings(prev => prev.filter(l => l.id !== id))
-      setListings(prev => prev.filter(l => l.id !== id))
-      setSavedIds(prev => prev.filter(sid => sid !== id))
+      // Remove from local state immediately for instant UI feedback.
+      // Defensive: ensure prev is always an array before calling .filter
+      // (a stale localStorage value or a stray setState from elsewhere could
+      // otherwise crash the page mid-delete with "r.filter is not a function").
+      setUserListings(prev => (Array.isArray(prev) ? prev : []).filter(l => l.id !== id))
+      setListings(prev => (Array.isArray(prev) ? prev : []).filter(l => l.id !== id))
+      setSavedIds(prev => (Array.isArray(prev) ? prev : []).filter(sid => sid !== id))
     } catch (err: any) {
       console.error('[deleteListing] failed:', err)
       alert(`Failed to delete: ${err.message || err}`)
