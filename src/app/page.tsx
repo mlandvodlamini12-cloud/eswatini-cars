@@ -2403,22 +2403,38 @@ export default function Home() {
                 </div>
               </button>
 
-              {/* View Vehicle Requests (submitted) */}
+              {/* My Requests — shows the user's own submitted vehicle requests.
+                  Requires login (so we can match by email). Faint when
+                  logged out to match the Saved Vehicles pattern. */}
               <button
-                onClick={() => { setView('requests'); setDrawerOpen(false) }}
-                className="w-full flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all text-left"
+                onClick={() => {
+                  if (currentUser) {
+                    setView('myrequests')
+                    setDrawerOpen(false)
+                  } else {
+                    setShowLogin(true)
+                  }
+                }}
+                className={`w-full flex items-center justify-between p-3 rounded-2xl border transition-all text-left ${
+                  currentUser
+                    ? 'bg-white/5 hover:bg-white/10 border-white/10'
+                    : 'bg-white/[0.02] border-white/5 opacity-50 cursor-not-allowed'
+                }`}
+                title={currentUser ? 'Your submitted vehicle requests' : 'Log in to view your requests'}
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center">
-                    <Bell className="w-5 h-5 text-amber-400" />
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${currentUser ? 'bg-amber-500/20' : 'bg-slate-700/40'}`}>
+                    <Bell className={`w-5 h-5 ${currentUser ? 'text-amber-400' : 'text-slate-500'}`} />
                   </div>
                   <div>
                     <div className="text-sm font-semibold text-white">My Requests</div>
-                    <div className="text-xs text-slate-400">View submitted requests</div>
+                    <div className="text-xs text-slate-400">
+                      {currentUser ? `${myRequests.length} request${myRequests.length === 1 ? '' : 's'} submitted` : 'Log in to view your requests'}
+                    </div>
                   </div>
                 </div>
-                {vehicleRequests.length > 0 && (
-                  <Badge className="bg-sky-500 text-white text-[10px]">{vehicleRequests.length}</Badge>
+                {currentUser && myRequests.length > 0 && (
+                  <Badge className="bg-amber-500 text-white text-[10px]">{myRequests.length}</Badge>
                 )}
               </button>
 
