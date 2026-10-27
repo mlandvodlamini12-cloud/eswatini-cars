@@ -513,3 +513,95 @@ Stage Summary:
 - ✅ VERIFIED LOCALLY: 7+ test cases (null, object, string, number, broken-array) all pass without crashing the page
 - User does NOT need to clear app data anymore — the new code will self-heal on next page load by detecting and discarding the bad cached value
 - APK users (TWA via Android System WebView): the new SW v4 will activate on next app launch within ~24h, OR the user can force an update by killing the app and reopening
+
+---
+Task ID: restore-regressed-features-1
+Agent: main
+Task: Restore 4 features that regressed during the auth migration (per user report).
+
+Work Log:
+User reported 4 regressions after the auth features deploy:
+1. "My favorites is not faint as it was" — Saved Vehicles drawer item lost the
+   greyed-out/faint styling for unregistered users
+2. "Saved button also not faint as it was" — Saved button in the header lost
+   the opacity-40 styling for unregistered users
+3. "Hamburger menu can't close with an X as it was before" — the X close button
+   at the top of the drawer is hidden behind the hamburger button
+4. "Most recent sorting is not working" — switching to Most Recent doesn't
+   reorder the listings back to recency
+
+Root causes:
+1+2: When I added the auth migration, I rewrote the Saved button and the
+     Saved Vehicles drawer item with simplified className (no conditional
+     opacity-40) and a non-conditional onClick (no login-required check).
+3:  The hamburger button (z-[60]) was always mounted, and when the drawer
+     opened (drawer panel is z-50), the hamburger stayed on top of the X
+     button at the top-right of the drawer. User saw the hamburger icon
+     where the X should be, thought the X was missing/broken.
+4:  apiFetchListings only sorted on the client for 'price-low' and
+     'price-high'. For 'recent' it trusted whatever order the API
+     returned (which was always featured-desc, createdAt-desc). When the
+     user switched FROM 'price-low' back TO 'recent', the listings state
+     was still price-sorted and never got re-sorted. User saw stale
+     price-sorted order and thought "Most Recent sorting is broken".
+
+Fixes applied (commit 048ef51):
+1. Saved button in header: restored the conditional onClick
+   (`currentUser ? setView('saved') : setShowLogin(true)`) and the
+   conditional className with `${!currentUser ? 'opacity-40' : ''}`.
+2. Saved Vehicles drawer item: restored the conditional className based
+   on currentUser — full styling (`opacity-50 cursor-not-allowed` for
+   logged-out, `bg-white/5 hover:bg-white/10 border-white/10` for
+   logged-in), conditional icon colors (red-400 when logged in,
+   slate-500 when logged out), conditional icon background (red-500/20
+   vs slate-700/40), subtitle ("Log in to save vehicles" vs "X saved
+   vehicles"), and login-required click behavior.
+3. Hamburger button: wrapped it in `{!drawerOpen && (...)}` so it
+   unmounts when the drawer is open. The X button at the top of the
+   drawer panel is now the only thing visible at that screen position
+   and is fully clickable.
+4. apiFetchListings: added explicit client-side sort for 'recent' mode
+   (`filtered.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())`).
+   Also restored the cache fallback: if the API call fails, we now read
+   from `cachedListings` (with the user's selected sort applied) instead
+   of returning an empty array. Previously a network blip would cause
+   the homepage to show "0 vehicles" — looked broken even though it
+   was just a temporary API failure.
+5. Bumped sw.js CACHE_NAME from v4 -> v5 so the new bundle ships to
+   every device on next SW update cycle.
+
+Deploy:
+- vercel deploy --prod --force --yes --token=$VERCEL_TOKEN
+- URL: https://eswatini-cars-2iatklcl7-eswatini-cars.vercel.app -> aliased to https://eswatini-cars.vercel.app
+- Build time: 48s, no errors, no warnings
+
+Verification (using agent-browser against the live site):
+1. Saved button faint: ✅
+   - getComputedStyle().opacity === '0.4' when logged out
+2. Saved Vehicles drawer item faint + login-required: ✅
+   - opacity: 0.5, cursor: not-allowed, subtitle "Log in to save vehicles"
+   - Clicking opens the Login dialog (verified: dialogCount: 1, dialogText
+     contains "Login to save favorites and message admin")
+3. Hamburger X: ✅
+   - When drawer opens: hamburger button unmounts (hamburgerStillVisible: false)
+   - X button at top of drawer is visible (top: 16, right: 1264) and clickable
+   - Clicking X closes the drawer (drawerStillOpen: false) and hamburger
+     button remounts (hamburgerVisible: true)
+4. Most Recent sort: ✅
+   - Initial (Most Recent): BMW X1 → BMW Gusheshe → Honda CBR → Various
+     parts → Toyota Quantum → VW Polo → Ford Ranger → Toyota Corolla
+   - Switch to Price: Low to High: Various parts → BMW X1 → Honda CBR →
+     BMW Gusheshe → VW Polo → Toyota Corolla → Toyota Quantum → Ford Ranger
+   - Switch to Price: High to Low: Ford Ranger → Toyota Quantum → Toyota
+     Corolla → VW Polo → BMW Gusheshe → Honda CBR → BMW X1 → Various parts
+     (exact reverse of Low to High)
+   - Switch back to Most Recent: original order restored
+
+Stage Summary:
+- ✅ ALL 4 REGRESSIONS FIXED
+- ✅ DEPLOY COMPLETE: https://eswatini-cars.vercel.app (commit 048ef51)
+- ✅ NO OTHER FEATURES TOUCHED: changes are surgical, only to the 4
+     affected code paths (header Saved button, drawer Saved Vehicles
+     item, hamburger button mount condition, apiFetchListings sort + cache)
+- User should hard-reload the app (Chrome: long-press reload → Hard reload)
+  to pick up the new SW v5 immediately, or wait ~24h for auto-update
