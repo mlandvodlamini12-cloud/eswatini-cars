@@ -2,6 +2,13 @@
 // Provides offline caching for the app shell
 //
 // VERSION HISTORY:
+//   v6 (2026-10-27 PM3): Fix admin login — submitLogin was sending
+//                        { email, password } for everyone, but the server
+//                        requires { email, adminPin } for admin emails.
+//                        Restored the conditional payload + added a UI
+//                        hint in the Login dialog when an admin email
+//                        is detected. Also fixed the misleading
+//                        "Demo PIN: 1234" hint in AdminDashboard.
 //   v5 (2026-10-27 PM2): Restore previously-working UI features that regressed
 //                        during the auth migration:
 //                        - 'Saved' button in header is faint (opacity-40) when
@@ -28,7 +35,7 @@
 //   v2: initial SW for the Vercel-hosted app
 //   v1: legacy SW from the Netlify-hosted app
 
-const CACHE_NAME = 'eswatini-cars-v5';
+const CACHE_NAME = 'eswatini-cars-v6';
 const APP_SHELL = [
   '/',
   '/manifest.json',

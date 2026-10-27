@@ -1106,11 +1106,24 @@ export default function Home() {
   const submitLogin = async () => {
     if (!loginEmail) return
     try {
+      // Admin emails authenticate via a shared admin PIN (not a per-user password).
+      // For admin emails we send { email, adminPin } and the server creates/updates
+      // the admin user record on the fly. For regular users we send { email, password }.
+      // This mirrors the pre-auth-migration behavior — restoring it because the
+      // simplified version was sending { email, password } for everyone, which
+      // caused admin emails to be rejected with "Wrong Admin PIN".
+      const isAdmin = isAdminEmail(loginEmail)
+      const payload: any = { email: loginEmail }
+      if (isAdmin) {
+        payload.adminPin = ADMIN_PIN
+      } else {
+        payload.password = loginPassword
+      }
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+        body: JSON.stringify(payload),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
@@ -1129,6 +1142,9 @@ export default function Home() {
       setShowLogin(false)
       setLoginEmail('')
       setLoginPassword('')
+      // Admin users land directly on the admin dashboard after login (matches
+      // the pre-auth-migration behavior).
+      if (user.role === 'admin') setView('admin')
     } catch (err: any) {
       alert(`Login failed: ${err.message || err}. Please try again.`)
     }
@@ -2545,10 +2561,29 @@ export default function Home() {
           </DialogHeader>
           <div className="space-y-3">
             <div><Label>Email *</Label><Input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} placeholder="john@email.com" /></div>
-            <div><Label>Password *</Label><Input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="Min 8 characters" minLength={8} /></div>
-            <div className="text-right"><button className="text-xs text-sky-400 hover:text-sky-300 underline" onClick={() => { setShowLogin(false); setShowForgotPassword(true) }}>Forgot password?</button></div>
+            {isAdminEmail(loginEmail) ? (
+              // Admin emails use the shared admin PIN (sent automatically by submitLogin).
+              // The password field is hidden for admin emails so users don't get
+              // confused about why their password "doesn't work" — they should be
+              // using the broker PIN, not a personal password.
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-xs text-amber-200">
+                <div className="font-semibold mb-1 flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" /> Admin email detected</div>
+                Admin accounts use the shared broker PIN instead of a personal password. Click Login to continue with your admin PIN.
+              </div>
+            ) : (
+              <div><Label>Password *</Label><Input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="Min 8 characters" minLength={8} /></div>
+            )}
+            {!isAdminEmail(loginEmail) && (
+              <div className="text-right"><button className="text-xs text-sky-400 hover:text-sky-300 underline" onClick={() => { setShowLogin(false); setShowForgotPassword(true) }}>Forgot password?</button></div>
+            )}
             <DialogFooter className="flex flex-col gap-2">
-              <Button className="w-full bg-sky-500 text-white hover:bg-sky-400" disabled={!loginEmail || loginPassword.length < 8} onClick={submitLogin}>Login</Button>
+              <Button
+                className="w-full bg-sky-500 text-white hover:bg-sky-400"
+                disabled={!loginEmail || (!isAdminEmail(loginEmail) && loginPassword.length < 8)}
+                onClick={submitLogin}
+              >
+                Login
+              </Button>
               <Button variant="outline" className="w-full" onClick={() => { setShowLogin(false); setShowRegister(true) }}>Create new account</Button>
             </DialogFooter>
             <p className="text-[10px] text-slate-500 text-center">⚠️ Email verification requires a cloud email service (coming soon). Passwords are stored locally for now.</p>
@@ -2838,7 +2873,7 @@ function AdminDashboard({ vehicleRequests, adminMessages, adminTeam, respondToMe
           <Button className="w-full bg-sky-500 text-slate-900 hover:bg-sky-400" onClick={login}>
             <Lock className="w-4 h-4 mr-1" /> Unlock
           </Button>
-          <p className="text-[10px] text-slate-500 text-center">Demo PIN: 1234</p>
+          <p className="text-[10px] text-slate-500 text-center">Admin-only. Enter the broker PIN to continue.</p>
         </CardContent>
       </Card>
     )
