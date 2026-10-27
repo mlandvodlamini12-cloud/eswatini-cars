@@ -391,3 +391,50 @@ Stage Summary:
 - ✅ scripts/save_credentials_pdf.py is safe (loads from .env.credentials at runtime)
 - ✅ Comprehensive credentials PDF generated (11,345 bytes, 6 sections + quick reference + leak response plan)
 - All credentials now centralized in one PDF: /home/z/my-project/download/eswatini-cars-credentials.pdf
+
+---
+Task ID: client-side-exception-fix-1
+Agent: main
+Task: Diagnose "Application error: a client-side exception has occurred" reported by user on mobile (Screenshot_20261027-113915.png) — app "still doesn't open".
+
+Work Log:
+- Fetched https://eswatini-cars.vercel.app/ via curl — HTTP 200, 46KB HTML, all listings present, no inline error markers
+- Tested live site with agent-browser (desktop + iPhone 14 emulation, fresh session + broken localStorage injection) — page renders correctly in ALL scenarios, no console errors, no client exceptions
+- Verified all API endpoints respond correctly:
+  * GET /api/health → 200, all 6 env vars set ✅
+  * GET /api/auth/me → 200, {user:null} ✅
+  * POST /api/auth/login → 400 (validates missing fields correctly) ✅
+  * GET /api/broadcasts → 200 ✅
+  * GET /api/messages → 401 (requires auth, correct) ✅
+  * GET /api/requests → 200 ✅
+- Confirmed current page.tsx bundle includes auth + firebase + admin code (live deploy IS up to date)
+- Inspected Vercel-deployed JS chunks — found firebase refs as string literals in chunk 85ea06ad8cd51162, no errors in execution
+- Inspected dev.log for build issues: stale "Module not found: Can't resolve 'firebase/auth'" warning was from BEFORE `firebase ^13.1.0` was added to package.json — current `bun run build` succeeds cleanly with no warnings
+- Yesterday's screenshot (Screenshot_20261026-193511.png) showed: registration form displaying "SMS unable to be sent until this region enabled by the app developer (auth/operation-not-allowed)" — Firebase phone auth region not enabled for Eswatini
+
+Root cause diagnosis:
+- Live site is HEALTHY — confirmed working in multiple browser sessions
+- User is most likely hitting a STALE SERVICE WORKER cache from before the recent auth/firebase deploy
+- Their browser cached the OLD JS chunks; when the new HTML loads (which references NEW chunk hashes), the SW should fetch fresh JS — but if the user has a partially-cached state (old HTML cached, old SW controlling page), they get the broken experience
+- Secondary possibility: user has stale localStorage state from yesterday's failed Firebase registration attempt that's triggering an unhandled client exception
+
+Fixes applied (committed as 10747d8):
+- Bumped public/sw.js CACHE_NAME from 'eswatini-cars-v2' → 'eswatini-cars-v3'
+- Enhanced SW activate handler to call client.navigate(client.url) on every open tab so users with a stale SW get force-reloaded to the new bundle on next SW update cycle (no manual close/reopen needed)
+- Added src/app/error.tsx as Next.js route-level error boundary — replaces the default "Application error: a client-side exception has occurred" blank white page with a friendly reload UI:
+  * Big "Reload app" button that clears non-essential localStorage and reloads
+  * "Reset app data" button that wipes ALL localStorage + unregisters the SW for a totally clean slate
+  * Expandable "Technical details" section showing the actual error message + digest for debugging
+- Added src/components/error-boundary.tsx as a reusable React ErrorBoundary component (currently not used directly — error.tsx covers the whole route — but available for wrapping specific subtrees like admin dashboard if needed later)
+- Verified `bun run build` succeeds with the new error.tsx + sw.js changes
+
+Stage Summary:
+- Local build: ✅ passes cleanly
+- Vercel deploy: PENDING — needs user to either:
+  (a) provide Vercel API token so I can run `vercel deploy --prod --force --token=$TOKEN`, OR
+  (b) trigger a redeploy themselves via the Vercel dashboard (Project → Deployments → Redeploy)
+- Until the new SW is deployed, the immediate workaround for the user is:
+  1. Open Chrome on mobile → visit eswatini-cars.vercel.app
+  2. Long-press the reload button → tap "Hard reload" (or open in incognito tab to test)
+  3. If that doesn't work: Settings → Site settings → eswatini-cars.vercel.app → Clear data
+  4. APK users: Settings → Apps → Eswatini Car → Storage → Clear data, then reopen
