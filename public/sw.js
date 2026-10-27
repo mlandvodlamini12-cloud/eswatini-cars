@@ -2,13 +2,29 @@
 // Provides offline caching for the app shell
 //
 // VERSION HISTORY:
-//   v6 (2026-10-27 PM3): Fix admin login — submitLogin was sending
-//                        { email, password } for everyone, but the server
-//                        requires { email, adminPin } for admin emails.
-//                        Restored the conditional payload + added a UI
-//                        hint in the Login dialog when an admin email
-//                        is detected. Also fixed the misleading
-//                        "Demo PIN: 1234" hint in AdminDashboard.
+//   v7 (2026-10-27 PM4): Vehicle Requests — fix persistence bug + add
+//                        edit + delete features.
+//                        - POST /api/requests now actually persists requests
+//                          to Turso DB (was only being stored in local React
+//                          state, so they vanished on refresh — that was the
+//                          "after I post a request, request disappears after
+//                          refresh of app" bug)
+//                        - New useEffect fetches requests on mount + every
+//                          30s, so users always see their own (and others')
+//                          requests across page refreshes
+//                        - New PATCH /api/requests/[id] endpoint + Edit button
+//                          in My Requests UI (pre-fills form, "Save changes")
+//                        - New DELETE /api/requests/[id] endpoint + Delete
+//                          button in My Requests UI (with confirmation prompt)
+//                        - Server enforces ownership: only the original
+//                          requester (matched by session email) or an admin
+//                          can edit/delete a request
+//                        - Request form auto-fills name + email from the
+//                          logged-in user, so creating a request is faster
+//                          for registered users
+//                        - VehicleRequest type updated to reflect that
+//                          make/model/minBudget/maxBudget/description/
+//                          requesterPhone are nullable in the DB
 //   v5 (2026-10-27 PM2): Restore previously-working UI features that regressed
 //                        during the auth migration:
 //                        - 'Saved' button in header is faint (opacity-40) when
@@ -35,7 +51,7 @@
 //   v2: initial SW for the Vercel-hosted app
 //   v1: legacy SW from the Netlify-hosted app
 
-const CACHE_NAME = 'eswatini-cars-v6';
+const CACHE_NAME = 'eswatini-cars-v7';
 const APP_SHELL = [
   '/',
   '/manifest.json',

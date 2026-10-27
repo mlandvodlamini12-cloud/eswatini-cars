@@ -62,16 +62,16 @@ type VehicleRequest = {
   id: string
   requesterName: string
   requesterEmail: string
-  requesterPhone: string
+  requesterPhone: string | null
   vehicleType: string
-  make: string
-  model: string
-  minBudget: string
-  maxBudget: string
+  make: string | null
+  model: string | null
+  minBudget: string | null
+  maxBudget: string | null
   fuelType: string
   transmission: string
   region: string
-  description: string
+  description: string | null
   status: string
   createdAt: string
 }
@@ -808,6 +808,11 @@ export default function Home() {
   // Initial broadcasts fetch — runs once on mount.
   useEffect(() => { fetchBroadcasts() }, [fetchBroadcasts])
 
+  // (Vehicle requests fetch+refresh moved below — see fetchVehicleRequests
+  // definition further down. The useEffect that calls it must be AFTER the
+  // function definition, otherwise we hit a temporal-dead-zone error during
+  // the production build: "Cannot access 'bK' before initialization".)
+
   // Dismiss a broadcast: add its id to the dismissedBroadcasts list in localStorage.
   const dismissBroadcast = useCallback((id: string) => {
     setDismissedBroadcasts(prev => {
@@ -1186,38 +1191,194 @@ export default function Home() {
   }, [])
 
   // Vehicle Request form
+  // `editingRequestId` is null when creating a new request, or set to an
+  // existing request's id when editing. The same form/dialog is reused for
+  // both flows — only the button label and submit handler differ.
   const [requestForm, setRequestForm] = useState({
     requesterName: '', requesterEmail: '', requesterPhone: '',
     vehicleType: 'car', make: '', model: '', minBudget: '', maxBudget: '',
     fuelType: 'any', transmission: 'any', region: 'Manzini', description: '',
   })
   const [requestSubmitted, setRequestSubmitted] = useState(false)
+  const [editingRequestId, setEditingRequestId] = useState<string | null>(null)
+  const [submittingRequest, setSubmittingRequest] = useState(false)
+  const [deletingRequestId, setDeletingRequestId] = useState<string | null>(null)
 
-  const submitRequest = () => {
-    const newRequest: VehicleRequest = {
-      id: `req-${Date.now()}`,
-      requesterName: requestForm.requesterName,
-      requesterEmail: requestForm.requesterEmail,
-      requesterPhone: requestForm.requesterPhone,
-      vehicleType: requestForm.vehicleType,
-      make: requestForm.make,
-      model: requestForm.model,
-      minBudget: requestForm.minBudget,
-      maxBudget: requestForm.maxBudget,
-      fuelType: requestForm.fuelType,
-      transmission: requestForm.transmission,
-      region: requestForm.region,
-      description: requestForm.description,
-      status: 'new',
-      createdAt: new Date().toISOString(),
+  // Fetch vehicle requests from the API. Called on mount + every 30s so the
+  // user sees new requests other people have submitted, AND their own
+  // requests survive a page refresh (previously requests were only held in
+  // local React state, so they vanished on refresh — that was the bug).
+  const fetchVehicleRequests = useCallback(async () => {
+    try {
+      const res = await fetch('/api/requests', { credentials: 'include' })
+      if (!res.ok) return
+      const data = await res.json()
+      if (Array.isArray(data?.requests)) {
+        setVehicleRequests(data.requests)
+      }
+    } catch {
+      // Silent failure — don't crash the page if the API is unreachable.
     }
-    setVehicleRequests(prev => [newRequest, ...prev])
-    setRequestSubmitted(true)
+  }, [])
+
+  // Initial vehicle requests fetch + 30s auto-refresh.
+  // This is what makes "My Requests" actually work — without it, requests are
+  // only held in local React state and disappear on page refresh. With this,
+  // requests are pulled from the server on mount and re-synced every 30s so
+  // the user always sees their own (and other people's) requests, even
+  // after closing and reopening the app.
+  // (Must come AFTER fetchVehicleRequests definition to avoid temporal dead
+  // zone error during production build.)
+  useEffect(() => {
+    fetchVehicleRequests()
+    const interval = setInterval(() => {
+      fetchVehicleRequests()
+    }, 30000) // 30s — same cadence as listings refresh
+    return () => clearInterval(interval)
+  }, [fetchVehicleRequests])
+
+  // Submit a NEW vehicle request — POSTs to the API which persists to Turso.
+  // Previously this just did `setVehicleRequests(prev => [newRequest, ...prev])`
+  // which only held the request in local React state. On refresh, state was
+  // wiped and the user's request was gone. Now we POST to /api/requests and
+  // let the server assign the real id (cuid), then re-fetch the full list so
+  // the UI reflects the actual DB state.
+  const submitRequest = async () => {
+    if (submittingRequest) return
+    setSubmittingRequest(true)
+    try {
+      // If editing an existing request, route to PATCH instead of POST.
+      if (editingRequestId) {
+        const res = await fetch(`/api/requests/${editingRequestId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            requesterName: requestForm.requesterName,
+            requesterPhone: requestForm.requesterPhone,
+            vehicleType: requestForm.vehicleType,
+            make: requestForm.make,
+            model: requestForm.model,
+            minBudget: requestForm.minBudget,
+            maxBudget: requestForm.maxBudget,
+            fuelType: requestForm.fuelType,
+            transmission: requestForm.transmission,
+            region: requestForm.region,
+            description: requestForm.description,
+          }),
+        })
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          throw new Error(err.error || `API returned ${res.status}`)
+        }
+        setRequestSubmitted(true)
+        setEditingRequestId(null)
+      } else {
+        // Creating a new request — POST to /api/requests.
+        const res = await fetch('/api/requests', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            requesterName: requestForm.requesterName,
+            requesterEmail: requestForm.requesterEmail,
+            requesterPhone: requestForm.requesterPhone,
+            vehicleType: requestForm.vehicleType,
+            make: requestForm.make,
+            model: requestForm.model,
+            minBudget: requestForm.minBudget,
+            maxBudget: requestForm.maxBudget,
+            fuelType: requestForm.fuelType,
+            transmission: requestForm.transmission,
+            region: requestForm.region,
+            description: requestForm.description,
+          }),
+        })
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          throw new Error(err.error || `API returned ${res.status}`)
+        }
+        setRequestSubmitted(true)
+      }
+      // Re-fetch the full list so the UI reflects the new/edited request
+      // exactly as the server has it (server assigns id, timestamps, etc.).
+      await fetchVehicleRequests()
+      // Reset the form for next time.
+      setRequestForm({
+        requesterName: '', requesterEmail: '', requesterPhone: '',
+        vehicleType: 'car', make: '', model: '', minBudget: '', maxBudget: '',
+        fuelType: 'any', transmission: 'any', region: 'Manzini', description: '',
+      })
+    } catch (err: any) {
+      alert(`Failed to submit request: ${err.message || err}. Please try again.`)
+    } finally {
+      setSubmittingRequest(false)
+    }
+  }
+
+  // Open the request dialog in EDIT mode — pre-fills the form with the
+  // existing request's data and sets editingRequestId so submitRequest knows
+  // to PATCH instead of POST.
+  const openEditRequest = (req: VehicleRequest) => {
+    setEditingRequestId(req.id)
+    setRequestSubmitted(false)
     setRequestForm({
-      requesterName: '', requesterEmail: '', requesterPhone: '',
-      vehicleType: 'car', make: '', model: '', minBudget: '', maxBudget: '',
-      fuelType: 'any', transmission: 'any', region: 'Manzini', description: '',
+      requesterName: req.requesterName,
+      requesterEmail: req.requesterEmail,
+      requesterPhone: req.requesterPhone || '',
+      vehicleType: req.vehicleType,
+      make: req.make || '',
+      model: req.model || '',
+      minBudget: req.minBudget || '',
+      maxBudget: req.maxBudget || '',
+      fuelType: req.fuelType || 'any',
+      transmission: req.transmission || 'any',
+      region: req.region,
+      description: req.description || '',
     })
+    setShowRequest(true)
+  }
+
+  // Open the request dialog in CREATE mode — clears any previous edit state
+  // and pre-fills with the logged-in user's email/name if available.
+  const openNewRequest = () => {
+    setEditingRequestId(null)
+    setRequestSubmitted(false)
+    setRequestForm({
+      requesterName: currentUser?.name || '',
+      requesterEmail: currentUser?.email || '',
+      requesterPhone: currentUser?.phone || '',
+      vehicleType: 'car',
+      make: '', model: '', minBudget: '', maxBudget: '',
+      fuelType: 'any', transmission: 'any',
+      region: 'Manzini', description: '',
+    })
+    setShowRequest(true)
+  }
+
+  // Delete a vehicle request by id. Asks for confirmation first because this
+  // is a destructive action. Calls DELETE /api/requests/[id] which enforces
+  // ownership (only the original requester or an admin can delete).
+  const deleteRequest = async (id: string) => {
+    if (!window.confirm('Delete this request? This cannot be undone.')) return
+    setDeletingRequestId(id)
+    try {
+      const res = await fetch(`/api/requests/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `API returned ${res.status}`)
+      }
+      // Optimistically remove from local state for instant UI feedback.
+      // fetchVehicleRequests will run on next 30s tick to reconcile.
+      setVehicleRequests(prev => (Array.isArray(prev) ? prev : []).filter(r => r.id !== id))
+    } catch (err: any) {
+      alert(`Failed to delete request: ${err.message || err}. Please try again.`)
+    } finally {
+      setDeletingRequestId(null)
+    }
   }
 
   // Contact Admin
@@ -1749,9 +1910,16 @@ export default function Home() {
 
         {view === 'myrequests' && (
           <section className="space-y-4">
-            <h2 className="text-2xl font-bold mb-2 text-white flex items-center gap-2">
-              <Search className="w-6 h-6 text-amber-400" /> My Vehicle Requests
-            </h2>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                <Search className="w-6 h-6 text-amber-400" /> My Vehicle Requests
+              </h2>
+              {currentUser && myRequests.length > 0 && (
+                <Button size="sm" onClick={openNewRequest} className="bg-sky-500 text-white hover:bg-sky-400">
+                  <Plus className="w-4 h-4 mr-1" /> New Request
+                </Button>
+              )}
+            </div>
             {!currentUser ? (
               <Card className="border-dashed">
                 <CardContent className="p-8 text-center text-slate-500">
@@ -1768,29 +1936,58 @@ export default function Home() {
                   <Search className="w-10 h-10 mx-auto mb-2 opacity-30" />
                   You haven't submitted any vehicle requests yet.
                   <div className="mt-3">
-                    <Button size="sm" onClick={() => setShowRequest(true)}>Make a Request</Button>
+                    <Button size="sm" onClick={openNewRequest}>Make a Request</Button>
                   </div>
                 </CardContent>
               </Card>
             ) : (
               <>
-                <p className="text-xs text-slate-400">{myRequests.length} request{myRequests.length === 1 ? '' : 's'} submitted.</p>
+                <p className="text-xs text-slate-400">
+                  {myRequests.length} request{myRequests.length === 1 ? '' : 's'} submitted. Your requests are saved here for easy reference — even after closing the app.
+                </p>
                 {myRequests.map((req) => (
                   <Card key={req.id}>
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between gap-2 mb-2">
-                        <div>
+                        <div className="min-w-0 flex-1">
                           <div className="font-semibold text-sm text-white">{req.vehicleType} · {req.make || 'Any make'} {req.model}</div>
                           <div className="text-xs text-slate-500">Budget: E{req.minBudget || '0'} - E{req.maxBudget || 'Any'} · {req.region}</div>
                         </div>
-                        <Badge className="bg-sky-500/20 text-sky-300 capitalize">{req.status}</Badge>
+                        <Badge className="bg-sky-500/20 text-sky-300 capitalize shrink-0">{req.status}</Badge>
                       </div>
                       {req.description && <p className="text-xs text-slate-400 italic mb-2">"{req.description}"</p>}
-                      <div className="text-[10px] text-slate-500">Submitted {fmtDate(req.createdAt)}</div>
+                      <div className="flex items-center justify-between gap-2 mt-3">
+                        <div className="text-[10px] text-slate-500">Submitted {fmtDate(req.createdAt)}</div>
+                        {/* Edit + Delete buttons — only the original requester can edit/delete
+                            their own requests (server enforces this via the session cookie).
+                            The buttons are hidden entirely for non-owners so users on a shared
+                            device don't see them. */}
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-sky-300 hover:bg-sky-500/10 hover:text-sky-200 h-7 px-2"
+                            onClick={() => openEditRequest(req)}
+                            title="Edit this request"
+                          >
+                            <Pencil className="w-3.5 h-3.5 mr-1" /> Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-300 hover:bg-red-500/10 hover:text-red-200 h-7 px-2 disabled:opacity-50"
+                            onClick={() => deleteRequest(req.id)}
+                            disabled={deletingRequestId === req.id}
+                            title="Delete this request"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 mr-1" /> {deletingRequestId === req.id ? 'Deleting...' : 'Delete'}
+                          </Button>
+                        </div>
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
-                <Button onClick={() => setShowRequest(true)} className="bg-sky-500 text-white hover:bg-sky-400">
+                <Button onClick={openNewRequest} className="bg-sky-500 text-white hover:bg-sky-400">
                   <Search className="w-4 h-4 mr-1" /> New Request
                 </Button>
               </>
@@ -2194,7 +2391,7 @@ export default function Home() {
             <div className="p-4 space-y-3">
               {/* Vehicle Requests */}
               <button
-                onClick={() => { setShowRequest(true); setDrawerOpen(false) }}
+                onClick={() => { openNewRequest(); setDrawerOpen(false) }}
                 className="w-full flex items-center gap-3 p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all text-left"
               >
                 <div className="w-10 h-10 rounded-xl bg-sky-500/20 flex items-center justify-center">
@@ -2419,7 +2616,7 @@ export default function Home() {
                 <Search className="w-10 h-10 mx-auto mb-2 opacity-30" />
                 No vehicle requests yet.
                 <div className="mt-3">
-                  <Button size="sm" onClick={() => setShowRequest(true)}>Make a Request</Button>
+                  <Button size="sm" onClick={openNewRequest}>Make a Request</Button>
                 </div>
               </CardContent>
             </Card>
@@ -2443,7 +2640,7 @@ export default function Home() {
               </Card>
             ))
           )}
-          <Button onClick={() => setShowRequest(true)} className="bg-sky-500 text-white hover:bg-sky-400">
+          <Button onClick={openNewRequest} className="bg-sky-500 text-white hover:bg-sky-400">
             <Search className="w-4 h-4 mr-1" /> New Request
           </Button>
         </div>
@@ -2494,24 +2691,49 @@ export default function Home() {
         <Lightbox src={lightbox} alt="Photo preview" onClose={() => setLightbox(null)} />
       )}
 
-      {/* VEHICLE REQUEST DIALOG */}
-      <Dialog open={showRequest} onOpenChange={setShowRequest}>
+      {/* VEHICLE REQUEST DIALOG — supports both CREATE and EDIT mode.
+          editingRequestId distinguishes between the two; if set, the form
+          fields are pre-filled with the existing request and the submit
+          button says "Save changes" instead of "Submit request". */}
+      <Dialog open={showRequest} onOpenChange={(o) => { setShowRequest(o); if (!o) { setEditingRequestId(null); setRequestSubmitted(false) } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Search className="w-5 h-5 text-sky-500" /> Vehicle Request</DialogTitle>
-            <DialogDescription>Can't find what you're looking for? Tell us what you need and we'll match you with sellers.</DialogDescription>
+            <DialogTitle className="flex items-center gap-2">
+              <Search className="w-5 h-5 text-sky-500" />
+              {editingRequestId ? 'Edit Request' : 'Vehicle Request'}
+            </DialogTitle>
+            <DialogDescription>
+              {editingRequestId
+                ? 'Update the details of your vehicle request.'
+                : "Can't find what you're looking for? Tell us what you need and we'll match you with sellers."}
+            </DialogDescription>
           </DialogHeader>
           {requestSubmitted ? (
             <div className="text-center py-6 space-y-2">
               <CheckCircle2 className="w-12 h-12 mx-auto text-emerald-500" />
-              <p className="font-semibold">Request submitted!</p>
+              <p className="font-semibold">{editingRequestId ? 'Request updated!' : 'Request submitted!'}</p>
               <p className="text-sm text-slate-500">Our team will contact you when we find a matching vehicle.</p>
-              <Button onClick={() => { setShowRequest(false); setRequestSubmitted(false) }}>Close</Button>
+              <Button onClick={() => { setShowRequest(false); setRequestSubmitted(false); setEditingRequestId(null) }}>Close</Button>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
-              <div><Label className="text-xs">Your name *</Label><Input value={requestForm.requesterName} onChange={e => setRequestForm({...requestForm, requesterName: e.target.value})} placeholder="John Dlamini" /></div>
-              <div><Label className="text-xs">Email *</Label><Input value={requestForm.requesterEmail} onChange={e => setRequestForm({...requestForm, requesterEmail: e.target.value})} placeholder="john@email.com" /></div>
+              <div>
+                <Label className="text-xs">Your name *</Label>
+                <Input value={requestForm.requesterName} onChange={e => setRequestForm({...requestForm, requesterName: e.target.value})} placeholder="John Dlamini" />
+              </div>
+              <div>
+                <Label className="text-xs">Email *</Label>
+                <Input
+                  type="email"
+                  value={requestForm.requesterEmail}
+                  onChange={e => setRequestForm({...requestForm, requesterEmail: e.target.value})}
+                  placeholder="john@email.com"
+                  disabled={!!editingRequestId}
+                />
+                {editingRequestId && (
+                  <p className="text-[10px] text-slate-500 mt-1">Email cannot be changed (used to verify ownership)</p>
+                )}
+              </div>
               <div><Label className="text-xs">Phone</Label><Input value={requestForm.requesterPhone} onChange={e => setRequestForm({...requestForm, requesterPhone: e.target.value})} placeholder="+268 7XXX" /></div>
               <div><Label className="text-xs">Vehicle type</Label><Select value={requestForm.vehicleType} onValueChange={v => setRequestForm({...requestForm, vehicleType: v})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{TYPES.filter(t => t.value !== 'all').map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent></Select></div>
               <div><Label className="text-xs">Make</Label><Input value={requestForm.make} onChange={e => setRequestForm({...requestForm, make: e.target.value})} placeholder="Toyota" /></div>
@@ -2522,7 +2744,16 @@ export default function Home() {
               <div><Label className="text-xs">Transmission</Label><Select value={requestForm.transmission} onValueChange={v => setRequestForm({...requestForm, transmission: v})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="any">Any</SelectItem><SelectItem value="manual">Manual</SelectItem><SelectItem value="automatic">Automatic</SelectItem></SelectContent></Select></div>
               <div><Label className="text-xs">Region</Label><Select value={requestForm.region} onValueChange={v => setRequestForm({...requestForm, region: v})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{REGIONS.filter(r => r !== 'all').map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select></div>
               <div className="col-span-2"><Label className="text-xs">Additional details</Label><Textarea value={requestForm.description} onChange={e => setRequestForm({...requestForm, description: e.target.value})} placeholder="Color preferences, must-have features, etc." rows={3} /></div>
-              <div className="col-span-2 flex justify-end gap-2"><Button variant="outline" onClick={() => setShowRequest(false)}>Cancel</Button><Button className="bg-sky-500 text-white hover:bg-sky-400" disabled={!requestForm.requesterName || !requestForm.requesterEmail} onClick={submitRequest}>Submit request</Button></div>
+              <div className="col-span-2 flex justify-end gap-2">
+                <Button variant="outline" onClick={() => { setShowRequest(false); setEditingRequestId(null) }}>Cancel</Button>
+                <Button
+                  className="bg-sky-500 text-white hover:bg-sky-400"
+                  disabled={!requestForm.requesterName || !requestForm.requesterEmail || submittingRequest}
+                  onClick={submitRequest}
+                >
+                  {submittingRequest ? 'Saving...' : (editingRequestId ? 'Save changes' : 'Submit request')}
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
