@@ -1,7 +1,15 @@
 // Service Worker for ESWATINI CARS PWA
 // Provides offline caching for the app shell
+//
+// VERSION HISTORY:
+//   v3 (2026-10-27): Force cache invalidation — previous deploys left stale JS
+//                     chunks on user devices that crashed the page on hydration.
+//                     New SW deletes the v2 cache on activation, so all users get
+//                     a clean fetch on next load.
+//   v2: initial SW for the Vercel-hosted app
+//   v1: legacy SW from the Netlify-hosted app
 
-const CACHE_NAME = 'eswatini-cars-v2';
+const CACHE_NAME = 'eswatini-cars-v3';
 const APP_SHELL = [
   '/',
   '/manifest.json',
@@ -29,16 +37,31 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Activate: clean up old caches
+// Activate: clean up old caches and force all open tabs to reload with fresh assets.
+// This is critical when a deploy ships broken JS chunks: without the reload, the
+// already-open tab keeps running the old (broken) code even after the new SW
+// takes over.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
-      );
-    })
+    caches.keys()
+      .then((keys) => {
+        const deletions = keys
+          .filter(key => key !== CACHE_NAME)
+          .map(key => caches.delete(key));
+        return Promise.all(deletions);
+      })
+      .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: 'window' }))
+      .then((clientList) => {
+        // Tell every open tab to do a hard reload (bypassing cache) so the user
+        // picks up the new JS chunks immediately, no manual close/reopen needed.
+        clientList.forEach((client) => {
+          try {
+            client.navigate(client.url);
+          } catch {}
+        });
+      })
   );
-  self.clients.claim();
 });
 
 // Fetch: network-first for pages, cache-first for static assets

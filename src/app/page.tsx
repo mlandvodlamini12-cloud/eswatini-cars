@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
-import { Car, Truck, Bike, Wrench, Search, Plus, Shield, Eye, Phone, MapPin, Fuel, Settings2, Gauge, TrendingUp, Handshake, CheckCircle2, Heart, MessageSquare, LayoutDashboard, Lock, X, Upload, Star, Clock, DollarSign, Send, ArrowLeft, Bus, Sparkles, Zap, ShieldCheck, Award, Trash2, Pencil, UserPlus, UserMinus, Bell, Mail, Users, LogOut, UserCog, Caravan, Tractor, FileText } from 'lucide-react'
+import { Car, Truck, Bike, Wrench, Search, Plus, Shield, Eye, Phone, MapPin, Fuel, Settings2, Gauge, TrendingUp, Handshake, CheckCircle2, Heart, MessageSquare, LayoutDashboard, Lock, X, Upload, Star, Clock, DollarSign, Send, ArrowLeft, Bus, Sparkles, Zap, ShieldCheck, Award, Trash2, Pencil, UserPlus, UserMinus, Bell, Mail, Users, LogOut, UserCog, Caravan, Tractor, FileText, Ban, Megaphone, History, TrendingDown } from 'lucide-react'
 
 type Listing = {
   id: string
@@ -32,6 +32,9 @@ type Listing = {
   featured: boolean
   views: number
   createdAt: string
+  sellerName?: string | null
+  sellerEmail?: string | null
+  sellerPhone?: string | null
 }
 
 type Enquiry = {
@@ -87,7 +90,7 @@ type User = {
   email: string
   name: string
   phone: string
-  role: 'user' | 'minor_admin' | 'main_admin'
+  role: 'user' | 'minor_admin' | 'main_admin' | 'admin'
   createdAt: string
 }
 
@@ -385,7 +388,7 @@ const COMMISSION_RATES = [
   { range: 'Parts & Accessories', rate: '10%', note: 'Flat fee' },
 ]
 
-const ADMIN_PIN = '1234' // simple PIN — change this in production
+const ADMIN_PIN = '1374' // 🔐 Custom admin PIN
 
 // === ADMIN EMAIL ALLOWLIST ===
 // Only these emails can see the Admin Dashboard button.
@@ -419,8 +422,16 @@ const fmtDate = (iso: string) => {
 }
 
 export default function Home() {
-  const [view, setView] = useState<'browse' | 'how' | 'saved' | 'admin' | 'requests' | 'messages'>('browse')
-  const [listings, setListings] = useState<Listing[]>([])
+  const [view, setView] = useState<'browse' | 'how' | 'saved' | 'myposts' | 'myrequests' | 'admin' | 'requests' | 'messages'>('browse')
+  const [listings, setListings] = useState<Listing[]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      const cached = window.localStorage.getItem('cachedListings')
+      return cached ? JSON.parse(cached) : []
+    } catch {
+      return []
+    }
+  })
   const [loading, setLoading] = useState(true)
   const [enquiryOpen, setEnquiryOpen] = useState<string | null>(null)
   const [listingDetail, setListingDetail] = useState<Listing | null>(null)
@@ -479,6 +490,38 @@ export default function Home() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [showDisclaimer, setShowDisclaimer] = useState(false)
 
+  // === BROADCASTS (admin announcements banner) ===
+  const [broadcasts, setBroadcasts] = useState<Array<{ id: string; title: string; message: string; audience: string; createdAt: string; read?: boolean }>>([])
+  const [activeBroadcast, setActiveBroadcast] = useState<{ id: string; title: string; message: string; audience: string; createdAt: string; read?: boolean } | null>(null)
+  const [dismissedBroadcasts, setDismissedBroadcasts] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      const s = window.localStorage.getItem('dismissedBroadcasts')
+      return s ? JSON.parse(s) : []
+    } catch { return [] }
+  })
+
+  // === FIREBASE PHONE OTP (register flow) ===
+  const [phoneVerifyStep, setPhoneVerifyStep] = useState<'form' | 'otp' | 'done'>('form')
+  const [otpCode, setOtpCode] = useState('')
+  const [confirmationResult, setConfirmationResult] = useState<any>(null)
+
+  // === RECENTLY VIEWED (track last 8 listings user opened) ===
+  const [recentlyViewedIds, setRecentlyViewedIds] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      const s = window.localStorage.getItem('recentlyViewed')
+      return s ? JSON.parse(s) : []
+    } catch { return [] }
+  })
+
+  // === PRICE DROP ALERTS ===
+  // When a listing's price drops vs the previously cached price, we surface it here.
+  const [priceDrops, setPriceDrops] = useState<Array<{ id: string; make: string; model: string; oldPrice: number; newPrice: number; imageUrl: string | null }>>([])
+
+  // === HONEYPOT (anti-spam on enquiry form) — hidden from humans, bots fill it in ===
+  const [enqWebsite, setEnqWebsite] = useState('')
+
   const toggleSave = (id: string) => {
     if (!currentUser) {
       setShowLogin(true)
@@ -503,10 +546,20 @@ export default function Home() {
       if (region !== 'all') params.set('region', region)
       if (minPrice) params.set('minPrice', minPrice)
       if (maxPrice) params.set('maxPrice', maxPrice)
+      if (sortBy === 'recent') params.set('sort', 'recent')
+      else if (sortBy === 'price-low') params.set('sort', 'price-low')
+      else if (sortBy === 'price-high') params.set('sort', 'price-high')
       const url = `/api/listings${params.toString() ? '?' + params.toString() : ''}`
       const res = await fetch(url, { cache: 'no-store' })
       if (!res.ok) throw new Error(`API returned ${res.status}`)
       const data = await res.json()
+      // Cache the freshly fetched listings in localStorage so the UI shows
+      // something instantly on next mount instead of an empty grid.
+      try {
+        if (data.listings?.length) {
+          window.localStorage.setItem('cachedListings', JSON.stringify(data.listings))
+        }
+      } catch {}
       // Apply local sort (server already orders by featured desc, createdAt desc)
       let filtered: Listing[] = data.listings || []
       if (sortBy === 'price-low') filtered.sort((a, b) => a.price - b.price)
@@ -550,13 +603,18 @@ export default function Home() {
   // Initial load + when filters change — fetch from API (real-time sync)
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
+    // If we already have cached listings in state, don't flash the loading spinner —
+    // show the cached grid while we re-fetch in the background.
+    if (listings.length === 0) setLoading(true)
     apiFetchListings().then((result) => {
       if (cancelled) return
       setListings(result)
       setLoading(false)
+      // Run a price-drop check against what we previously stored.
+      checkPriceDrops(result)
     })
     return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiFetchListings])
 
   // Auto-refresh listings every 30 seconds (real-time sync: new listings appear without manual refresh)
@@ -572,13 +630,124 @@ export default function Home() {
   const featuredListings = useMemo(() => listings.filter(l => l.featured), [listings])
   const justListed = useMemo(() => listings.slice(0, 8), [listings])
   const savedListings = useMemo(() => listings.filter(l => savedIds.includes(l.id)), [listings, savedIds])
+  const myListings = useMemo(() => currentUser?.email ? listings.filter(l => l.sellerEmail === currentUser.email) : [], [listings, currentUser])
+  const myRequests = useMemo(() => currentUser?.email ? vehicleRequests.filter(r => r.requesterEmail === currentUser.email || r.requesterPhone === currentUser.phone) : [], [vehicleRequests, currentUser])
+  const recentlyViewed = useMemo(() => recentlyViewedIds.map(id => listings.find(l => l.id === id)).filter(Boolean) as Listing[], [listings, recentlyViewedIds])
 
   const submitEnquiry = async (_listingId: string) => {
+    // Honeypot: if the hidden "website" field is filled in, it's a bot.
+    if (enqWebsite) {
+      console.warn('[submitEnquiry] honeypot tripped — silently dropping spam')
+      setEnqSubmitted(true) // fake success so the bot doesn't retry
+      return
+    }
     setEnqSubmitted(true)
   }
 
+  // Track a listing view: prepend to recentlyViewedIds, dedupe, keep only the latest 8.
+  const trackView = useCallback((id: string) => {
+    setRecentlyViewedIds(prev => {
+      const next = [id, ...prev.filter(x => x !== id)].slice(0, 8)
+      try { window.localStorage.setItem('recentlyViewed', JSON.stringify(next)) } catch {}
+      return next
+    })
+  }, [])
+
+  // Compare freshly fetched listings to previously cached prices. If a price went
+  // DOWN, surface it in the priceDrops banner so the user knows to take a look.
+  const checkPriceDrops = useCallback((fresh: Listing[]) => {
+    try {
+      const cachedRaw = window.localStorage.getItem('cachedListings')
+      if (!cachedRaw) return
+      const cached: Listing[] = JSON.parse(cachedRaw)
+      const cachedMap = new Map(cached.map(l => [l.id, l.price]))
+      const drops: Array<{ id: string; make: string; model: string; oldPrice: number; newPrice: number; imageUrl: string | null }> = []
+      for (const l of fresh) {
+        const old = cachedMap.get(l.id)
+        if (typeof old === 'number' && old > l.price) {
+          drops.push({ id: l.id, make: l.make, model: l.model, oldPrice: old, newPrice: l.price, imageUrl: l.imageUrl })
+        }
+      }
+      // Persist the freshest snapshot so the *next* run can diff against it.
+      window.localStorage.setItem('cachedListings', JSON.stringify(fresh))
+      if (drops.length > 0) setPriceDrops(drops)
+    } catch {}
+  }, [])
+
+  // Send an OTP to the user's phone via Firebase phone auth (recaptcha-less if available).
+  // Falls back to a dev-mode "123456" code if Firebase isn't reachable.
+  const sendOTP = useCallback(async (phone: string) => {
+    try {
+      const { sendPhoneOTP } = await import('@/lib/firebase')
+      const result = await sendPhoneOTP(phone)
+      if ('error' in result) {
+        // Firebase failed — use mock mode so registration isn't blocked
+        console.warn('[sendOTP] Firebase error:', result.error)
+        setConfirmationResult({ _mock: true, _phone: phone })
+        setPhoneVerifyStep('otp')
+        alert('Could not send SMS via Firebase. Using dev mode: OTP is 123456')
+      } else {
+        setConfirmationResult(result.confirmationResult)
+        setPhoneVerifyStep('otp')
+      }
+    } catch (err: any) {
+      console.warn('[sendOTP] failed, using mock:', err)
+      setConfirmationResult({ _mock: true, _phone: phone })
+      setPhoneVerifyStep('otp')
+      alert('Dev mode: OTP is 123456')
+    }
+  }, [])
+
+  const verifyOTP = useCallback(async (code: string) => {
+    if (!confirmationResult) throw new Error('No OTP in flight. Please request a new code.')
+    if (confirmationResult._mock) {
+      if (code !== '123456') throw new Error('Wrong code. (Dev mode: use 123456)')
+      setPhoneVerifyStep('done')
+      return
+    }
+    const { verifyPhoneOTP } = await import('@/lib/firebase')
+    const result = await verifyPhoneOTP(confirmationResult, code)
+    if (!result.verified) throw new Error(result.error || 'Invalid code')
+    setPhoneVerifyStep('done')
+  }, [confirmationResult])
+
+  // Fetch active broadcasts (admin announcements) from /api/broadcasts.
+  // Show the most recent unread, un-dismissed one as a sticky banner.
+  const fetchBroadcasts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/broadcasts', { credentials: 'include' })
+      if (!res.ok) return
+      const data = await res.json()
+      setBroadcasts(data.broadcasts || [])
+    } catch {}
+  }, [])
+
+  // Pick the most recent unread + un-dismissed broadcast to surface as the banner.
+  useEffect(() => {
+    if (broadcasts.length === 0) {
+      setActiveBroadcast(null)
+      return
+    }
+    const next = broadcasts.find(b => !b.read && !dismissedBroadcasts.includes(b.id))
+    setActiveBroadcast(next || null)
+  }, [broadcasts, dismissedBroadcasts])
+
+  // Initial broadcasts fetch — runs once on mount.
+  useEffect(() => { fetchBroadcasts() }, [fetchBroadcasts])
+
+  // Dismiss a broadcast: add its id to the dismissedBroadcasts list in localStorage.
+  const dismissBroadcast = useCallback((id: string) => {
+    setDismissedBroadcasts(prev => {
+      const next = [...prev, id]
+      try { window.localStorage.setItem('dismissedBroadcasts', JSON.stringify(next)) } catch {}
+      return next
+    })
+    setActiveBroadcast(null)
+  }, [])
+
   const openListingDetail = (l: Listing) => {
     setListingDetail(l)
+    trackView(l.id)
   }
 
   // Compress and resize image in the browser BEFORE upload.
@@ -803,19 +972,51 @@ export default function Home() {
 
   // Register new user
   const [registerForm, setRegisterForm] = useState({ name: '', email: '', phone: '', password: '' })
-  const submitRegister = () => {
+  const submitRegister = async () => {
     if (!registerForm.email || !registerForm.name) return
-    const newUser: User = {
-      email: registerForm.email,
-      name: registerForm.name,
-      phone: registerForm.phone,
-      role: 'user',
-      createdAt: new Date().toISOString()
+    // If we're in the OTP step, verify the code first.
+    if (phoneVerifyStep === 'otp') {
+      try {
+        await verifyOTP(otpCode)
+      } catch (err: any) {
+        alert(`OTP verification failed: ${err.message || err}`)
+        return
+      }
     }
-    setCurrentUser(newUser)
-    localStorage.setItem('ec_user', JSON.stringify(newUser))
-    setShowRegister(false)
-    setRegisterForm({ name: '', email: '', phone: '', password: '' })
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: registerForm.name,
+          email: registerForm.email,
+          phone: registerForm.phone,
+          password: registerForm.password,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `API returned ${res.status}`)
+      }
+      const data = await res.json()
+      const newUser: User = {
+        email: data.user.email,
+        name: data.user.name,
+        phone: data.user.phone || '',
+        role: (data.user.role as User['role']) || 'user',
+        createdAt: data.user.createdAt || new Date().toISOString()
+      }
+      setCurrentUser(newUser)
+      localStorage.setItem('ec_user', JSON.stringify(newUser))
+      setShowRegister(false)
+      setRegisterForm({ name: '', email: '', phone: '', password: '' })
+      setPhoneVerifyStep('form')
+      setOtpCode('')
+      setConfirmationResult(null)
+    } catch (err: any) {
+      alert(`Registration failed: ${err.message || err}. Please try again.`)
+    }
   }
 
   // Login
@@ -826,32 +1027,70 @@ export default function Home() {
   const [forgotSent, setForgotSent] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
   const [profileForm, setProfileForm] = useState({ name: '', email: '', phone: '', password: '', newPassword: '' })
-  const submitLogin = () => {
+  const submitLogin = async () => {
     if (!loginEmail) return
-    const user: User = {
-      email: loginEmail,
-      name: loginEmail.split('@')[0],
-      phone: '',
-      role: 'user',
-      createdAt: new Date().toISOString()
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `API returned ${res.status}`)
+      }
+      const data = await res.json()
+      const user: User = {
+        email: data.user.email,
+        name: data.user.name || data.user.email.split('@')[0],
+        phone: data.user.phone || '',
+        role: (data.user.role as User['role']) || 'user',
+        createdAt: data.user.createdAt || new Date().toISOString()
+      }
+      setCurrentUser(user)
+      localStorage.setItem('ec_user', JSON.stringify(user))
+      setShowLogin(false)
+      setLoginEmail('')
+      setLoginPassword('')
+    } catch (err: any) {
+      alert(`Login failed: ${err.message || err}. Please try again.`)
     }
-    setCurrentUser(user)
-    localStorage.setItem('ec_user', JSON.stringify(user))
-    setShowLogin(false)
-    setLoginEmail('')
   }
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+    } catch {}
     setCurrentUser(null)
     localStorage.removeItem('ec_user')
   }
 
-  // Load user from localStorage on mount
+  // Load user from localStorage on mount + verify session cookie against server.
+  // The server is the source of truth — if the cookie is still alive we trust it
+  // over the localStorage snapshot (handles "logged in on this browser" across reloads
+  // and clears the local user if the session has expired).
   useEffect(() => {
     const saved = localStorage.getItem('ec_user')
     if (saved) {
       try { setCurrentUser(JSON.parse(saved)) } catch {}
     }
+    fetch('/api/auth/me', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.user) {
+          const u: User = {
+            email: data.user.email,
+            name: data.user.name || data.user.email.split('@')[0],
+            phone: data.user.phone || '',
+            role: (data.user.role as User['role']) || 'user',
+            createdAt: data.user.createdAt || new Date().toISOString(),
+          }
+          setCurrentUser(u)
+          localStorage.setItem('ec_user', JSON.stringify(u))
+        }
+      })
+      .catch(() => {})
   }, [])
 
   // Vehicle Request form
@@ -936,6 +1175,48 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-navy-fade-vertical text-slate-100 flex flex-col">
+      {/* SCHEMA.ORG STRUCTURED DATA — so Google rich-results can index this marketplace */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'WebSite',
+            name: 'Eswatini Cars',
+            url: 'https://eswatinicars.co.sz',
+            description: "Eswatini's #1 managed vehicle marketplace. Safe, verified, broker-supervised viewings across all four regions of Eswatini.",
+            potentialAction: {
+              '@type': 'SearchAction',
+              target: 'https://eswatinicars.co.sz/?q={search_term_string}',
+              'query-input': 'required name=search_term_string',
+            },
+            publisher: {
+              '@type': 'Organization',
+              name: 'Eswatini Cars',
+              logo: { '@type': 'ImageObject', url: 'https://eswatinicars.co.sz/logo.png' },
+            },
+          }),
+        }}
+      />
+
+      {/* BROADCAST BANNER — top-priority admin announcements */}
+      {activeBroadcast && (
+        <div className="bg-gradient-to-r from-amber-500/90 via-amber-500 to-amber-400/90 text-slate-900 text-sm px-4 py-2.5 flex items-center gap-3 border-b border-amber-600/40 shadow-md z-40">
+          <Megaphone className="w-5 h-5 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-xs uppercase tracking-wide truncate">{activeBroadcast.title}</div>
+            <div className="text-[12px] line-clamp-1 opacity-90">{activeBroadcast.message}</div>
+          </div>
+          <button
+            onClick={() => dismissBroadcast(activeBroadcast.id)}
+            className="bg-black/20 hover:bg-black/40 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 transition-colors"
+            aria-label="Dismiss announcement"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* HEADER — navy blue fade */}
       <header className="bg-navy-fade text-white py-4 px-4 shadow-xl border-b-4 border-sky-500 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-3">
@@ -1140,7 +1421,19 @@ export default function Home() {
               </div>
 
               {loading ? (
-                <div className="text-center py-12 text-slate-500">Loading listings…</div>
+                <div className="flex flex-col items-center justify-center py-20 gap-4">
+                  <img src="/logo.png" alt="Eswatini Cars" className="w-20 h-20 rounded-full shadow-2xl shadow-sky-500/30 animate-[fade-in_0.6s_ease-out]" />
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-white tracking-tight">Loading Eswatini Cars...</div>
+                    <div className="text-xs text-slate-400 mt-1">Fetching the latest listings</div>
+                  </div>
+                  {/* Animated bouncing dots */}
+                  <div className="flex gap-1.5 mt-2">
+                    <span className="w-2.5 h-2.5 bg-sky-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-2.5 h-2.5 bg-sky-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-2.5 h-2.5 bg-sky-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                </div>
               ) : listings.length === 0 ? (
                 <Card className="border-dashed">
                   <CardContent className="p-8 text-center text-slate-500">
@@ -1176,6 +1469,66 @@ export default function Home() {
                 </div>
                 <div id="featured-carousel" className="flex gap-4 overflow-x-auto pb-3 scroll-smooth snap-x" style={{ scrollbarWidth: 'thin', scrollbarColor: '#0ea5e9 transparent' }}>
                   {featuredListings.map(l => (
+                    <div key={l.id} className="flex-shrink-0 w-72 snap-center">
+                      <ListingCard listing={l} saved={savedIds.includes(l.id)} onToggleSave={toggleSave} onClick={() => openListingDetail(l)} onEnquire={(id) => { setEnquiryOpen(id); setEnqSubmitted(false); }} />
+                    </div>
+                  ))}
+                </div>
+              </section>
+              </FadeIn>
+            )}
+
+            {/* PRICE DROP ALERTS — surfaces listings whose price has dropped since last visit */}
+            {priceDrops.length > 0 && (
+              <FadeIn>
+              <section className="rounded-3xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/5 to-transparent p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-bold text-emerald-400 uppercase tracking-widest flex items-center gap-2">
+                    <TrendingDown className="w-4 h-4" /> Price Drops
+                  </h3>
+                  <button onClick={() => setPriceDrops([])} className="text-[10px] text-slate-400 hover:text-white">Dismiss all</button>
+                </div>
+                <div className="flex gap-4 overflow-x-auto pb-3 scroll-smooth snap-x" style={{ scrollbarWidth: 'thin' }}>
+                  {priceDrops.map(d => {
+                    const l = listings.find(x => x.id === d.id)
+                    return (
+                      <div key={d.id} className="flex-shrink-0 w-72 snap-center">
+                        <Card className="overflow-hidden cursor-pointer hover:border-emerald-400/50 transition-colors" onClick={() => l && openListingDetail(l)}>
+                          <div className="aspect-video bg-slate-200 dark:bg-slate-800 relative">
+                            {d.imageUrl ? <img src={d.imageUrl.split('|')[0]} alt={`${d.make} ${d.model}`} className="w-full h-full object-cover" /> : <Car className="w-10 h-10 text-slate-400 m-auto mt-[calc(50%-20px)]" />}
+                            <Badge className="absolute top-2 left-2 bg-emerald-500 text-white">-{Math.round((1 - d.newPrice / d.oldPrice) * 100)}%</Badge>
+                          </div>
+                          <CardContent className="p-3">
+                            <div className="font-bold text-sm">{d.make} {d.model}</div>
+                            <div className="flex items-baseline gap-2 mt-1">
+                              <span className="text-emerald-500 font-bold">{fmt(d.newPrice)}</span>
+                              <span className="text-xs text-slate-500 line-through">{fmt(d.oldPrice)}</span>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+              </FadeIn>
+            )}
+
+            {/* RECENTLY VIEWED — horizontal carousel of listings the user has opened */}
+            {recentlyViewed.length > 0 && (
+              <FadeIn>
+              <section className="rounded-3xl border border-white/10 bg-white/5 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-bold text-white/80 uppercase tracking-widest flex items-center gap-2">
+                    <History className="w-4 h-4 text-sky-400" /> Recently Viewed
+                  </h3>
+                  <div className="flex gap-1">
+                    <button onClick={() => document.getElementById('recent-carousel')?.scrollBy({ left: -300, behavior: 'smooth' })} className="bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center text-white transition-colors">←</button>
+                    <button onClick={() => document.getElementById('recent-carousel')?.scrollBy({ left: 300, behavior: 'smooth' })} className="bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center text-white transition-colors">→</button>
+                  </div>
+                </div>
+                <div id="recent-carousel" className="flex gap-4 overflow-x-auto pb-3 scroll-smooth snap-x" style={{ scrollbarWidth: 'thin' }}>
+                  {recentlyViewed.map(l => (
                     <div key={l.id} className="flex-shrink-0 w-72 snap-center">
                       <ListingCard listing={l} saved={savedIds.includes(l.id)} onToggleSave={toggleSave} onClick={() => openListingDetail(l)} onEnquire={(id) => { setEnquiryOpen(id); setEnqSubmitted(false); }} />
                     </div>
@@ -1250,6 +1603,105 @@ export default function Home() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {savedListings.map(l => <ListingCard key={l.id} listing={l} saved={true} onToggleSave={toggleSave} onClick={() => openListingDetail(l)} onEnquire={(id) => { setEnquiryOpen(id); setEnqSubmitted(false); }} />)}
               </div>
+            )}
+          </section>
+        )}
+
+        {view === 'myposts' && (
+          <section className="space-y-4">
+            <h2 className="text-2xl font-bold mb-2 text-white flex items-center gap-2">
+              <LayoutDashboard className="w-6 h-6 text-sky-400" /> My Posts
+            </h2>
+            {!currentUser ? (
+              <Card className="border-dashed">
+                <CardContent className="p-8 text-center text-slate-500">
+                  <Users className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                  Please log in to manage the listings you have created.
+                  <div className="mt-3">
+                    <Button size="sm" onClick={() => setShowLogin(true)}>Login</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : myListings.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="p-8 text-center text-slate-500">
+                  <Car className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                  You haven't posted any listings yet.
+                  <div className="mt-3">
+                    <Button size="sm" onClick={() => setSellOpen(true)}><Plus className="w-4 h-4 mr-1" /> Post your first vehicle</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                <p className="text-xs text-slate-400">{myListings.length} listing{myListings.length === 1 ? '' : 's'} — tap Edit to update details or Delete to remove.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {myListings.map(l => (
+                    <div key={l.id} className="relative">
+                      <ListingCard listing={l} saved={savedIds.includes(l.id)} onToggleSave={toggleSave} onClick={() => openListingDetail(l)} onEnquire={(id) => { setEnquiryOpen(id); setEnqSubmitted(false); }} />
+                      <div className="flex gap-2 mt-2">
+                        <Button size="sm" variant="outline" className="flex-1 border-amber-500/40 text-amber-600 hover:bg-amber-500/10" onClick={() => editListing(l)}>
+                          <Pencil className="w-3.5 h-3.5 mr-1" /> Edit
+                        </Button>
+                        <Button size="sm" variant="outline" className="flex-1 border-red-500/40 text-red-600 hover:bg-red-500/10" onClick={() => deleteListing(l.id)}>
+                          <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </section>
+        )}
+
+        {view === 'myrequests' && (
+          <section className="space-y-4">
+            <h2 className="text-2xl font-bold mb-2 text-white flex items-center gap-2">
+              <Search className="w-6 h-6 text-amber-400" /> My Vehicle Requests
+            </h2>
+            {!currentUser ? (
+              <Card className="border-dashed">
+                <CardContent className="p-8 text-center text-slate-500">
+                  <Users className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                  Please log in to view the vehicle requests you have submitted.
+                  <div className="mt-3">
+                    <Button size="sm" onClick={() => setShowLogin(true)}>Login</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : myRequests.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="p-8 text-center text-slate-500">
+                  <Search className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                  You haven't submitted any vehicle requests yet.
+                  <div className="mt-3">
+                    <Button size="sm" onClick={() => setShowRequest(true)}>Make a Request</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                <p className="text-xs text-slate-400">{myRequests.length} request{myRequests.length === 1 ? '' : 's'} submitted.</p>
+                {myRequests.map((req) => (
+                  <Card key={req.id}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div>
+                          <div className="font-semibold text-sm text-white">{req.vehicleType} · {req.make || 'Any make'} {req.model}</div>
+                          <div className="text-xs text-slate-500">Budget: E{req.minBudget || '0'} - E{req.maxBudget || 'Any'} · {req.region}</div>
+                        </div>
+                        <Badge className="bg-sky-500/20 text-sky-300 capitalize">{req.status}</Badge>
+                      </div>
+                      {req.description && <p className="text-xs text-slate-400 italic mb-2">"{req.description}"</p>}
+                      <div className="text-[10px] text-slate-500">Submitted {fmtDate(req.createdAt)}</div>
+                    </CardContent>
+                  </Card>
+                ))}
+                <Button onClick={() => setShowRequest(true)} className="bg-sky-500 text-white hover:bg-sky-400">
+                  <Search className="w-4 h-4 mr-1" /> New Request
+                </Button>
+              </>
             )}
           </section>
         )}
@@ -1367,6 +1819,15 @@ export default function Home() {
                   </div>
                 )}
                 <Button variant="outline" onClick={() => setListingDetail(null)}>Close</Button>
+                <a
+                  href={`https://wa.me/26876295648?text=${encodeURIComponent(`Hi ESWATINI CARS, I'm interested in the ${listingDetail.year} ${listingDetail.make} ${listingDetail.model} (E${listingDetail.price.toLocaleString()}). Is it still available?`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-1 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-600 hover:bg-emerald-500/20 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.71.306 1.263.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                  WhatsApp
+                </a>
                 <Button className="bg-sky-500 text-slate-900 hover:bg-sky-400" onClick={() => { setEnquiryOpen(listingDetail.id); setEnqSubmitted(false); setListingDetail(null); }}>
                   <MessageSquare className="w-4 h-4 mr-1" /> Buy/Enquire now
                 </Button>
@@ -1405,6 +1866,19 @@ export default function Home() {
               <div>
                 <Label htmlFor="enq-msg">Message</Label>
                 <Textarea id="enq-msg" value={enqMessage} onChange={e => setEnqMessage(e.target.value)} placeholder="I'm interested in this vehicle. When can I view it?" rows={4} />
+              </div>
+              {/* HONEYPOT — hidden from humans, bots fill it in. aria-hidden + sr-only + off-screen. */}
+              <div aria-hidden="true" className="absolute -left-[9999px] top-0 w-px h-px overflow-hidden" tabIndex={-1}>
+                <label htmlFor="enq-website" className="sr-only">Website (leave blank)</label>
+                <input
+                  id="enq-website"
+                  type="text"
+                  value={enqWebsite}
+                  onChange={e => setEnqWebsite(e.target.value)}
+                  autoComplete="off"
+                  tabIndex={-1}
+                  placeholder="Your website (do not fill in)"
+                />
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setEnquiryOpen(null)}>Cancel</Button>
@@ -1674,6 +2148,44 @@ export default function Home() {
                 )}
               </button>
 
+              {/* My Posts (logged-in only — shows listings the user created) */}
+              <button
+                onClick={() => { if (currentUser) { setView('myposts') } else { setShowLogin(true) }; setDrawerOpen(false) }}
+                className={`w-full flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all text-left ${currentUser ? '' : 'opacity-50'}`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-sky-500/20 flex items-center justify-center">
+                    <LayoutDashboard className="w-5 h-5 text-sky-400" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-white">My Posts</div>
+                    <div className="text-xs text-slate-400">{currentUser ? 'Listings you have created' : 'Login to view your posts'}</div>
+                  </div>
+                </div>
+                {currentUser && myListings.length > 0 && (
+                  <Badge className="bg-sky-500 text-white text-[10px]">{myListings.length}</Badge>
+                )}
+              </button>
+
+              {/* My Requests (logged-in only — shows vehicle requests the user submitted) */}
+              <button
+                onClick={() => { if (currentUser) { setView('myrequests') } else { setShowLogin(true) }; setDrawerOpen(false) }}
+                className={`w-full flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all text-left ${currentUser ? '' : 'opacity-50'}`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center">
+                    <Search className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-white">My Requests</div>
+                    <div className="text-xs text-slate-400">{currentUser ? 'Vehicle requests you submitted' : 'Login to view your requests'}</div>
+                  </div>
+                </div>
+                {currentUser && myRequests.length > 0 && (
+                  <Badge className="bg-amber-500 text-white text-[10px]">{myRequests.length}</Badge>
+                )}
+              </button>
+
               {/* Message Admin (registered only) */}
               {currentUser ? (
                 <button
@@ -1844,7 +2356,8 @@ export default function Home() {
           <div>
             <h4 className="font-semibold text-white mb-2 text-xs uppercase">Contact</h4>
             <ul className="space-y-1 text-xs">
-              <li className="flex items-center gap-2"><Phone className="w-3 h-3" /> +268 7XXX XXXX</li>
+              <li className="flex items-center gap-2"><Phone className="w-3 h-3" /> +268 76295648</li>
+              <li className="flex items-center gap-2"><svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.71.306 1.263.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg> <a href="https://wa.me/26876295648" target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300 underline">WhatsApp Chat</a></li>
             </ul>
             <div className="mt-4 p-3 bg-white/5 rounded-2xl border border-white/10">
               <div className="flex items-start gap-2">
@@ -1947,21 +2460,64 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      {/* REGISTER DIALOG */}
-      <Dialog open={showRegister} onOpenChange={setShowRegister}>
+      {/* REGISTER DIALOG — 2-step: form → OTP verification (Firebase phone auth) */}
+      <Dialog open={showRegister} onOpenChange={(o) => { setShowRegister(o); if (!o) { setPhoneVerifyStep('form'); setOtpCode(''); setConfirmationResult(null) } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><UserPlus className="w-5 h-5 text-sky-500" /> Register</DialogTitle>
-            <DialogDescription>Create a free account to save favorites and message admin.</DialogDescription>
+            <DialogTitle className="flex items-center gap-2"><UserPlus className="w-5 h-5 text-sky-500" /> Register {phoneVerifyStep === 'otp' && '— Verify Phone'}</DialogTitle>
+            <DialogDescription>
+              {phoneVerifyStep === 'otp'
+                ? 'Enter the 6-digit code we sent to your phone to complete verification.'
+                : 'Create a free account to save favorites and message admin.'}
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <div><Label>Name *</Label><Input value={registerForm.name} onChange={e => setRegisterForm({...registerForm, name: e.target.value})} placeholder="John Dlamini" /></div>
-            <div><Label>Email *</Label><Input type="email" value={registerForm.email} onChange={e => setRegisterForm({...registerForm, email: e.target.value})} placeholder="john@email.com" /></div>
-            <div><Label>Password * (min 8 characters)</Label><Input type="password" value={registerForm.password} onChange={e => setRegisterForm({...registerForm, password: e.target.value})} placeholder="••••••••" minLength={8} /></div>
-            <div><Label>Phone</Label><Input value={registerForm.phone} onChange={e => setRegisterForm({...registerForm, phone: e.target.value})} placeholder="+268 7XXX XXXX" /></div>
-            <DialogFooter><Button variant="outline" onClick={() => setShowRegister(false)}>Cancel</Button><Button className="bg-sky-500 text-white hover:bg-sky-400" disabled={!registerForm.name || !registerForm.email || registerForm.password.length < 8} onClick={submitRegister}>Register</Button></DialogFooter>
-            <p className="text-[10px] text-slate-500 text-center">⚠️ Email verification requires a cloud email service (coming soon).</p>
-          </div>
+          {phoneVerifyStep === 'otp' ? (
+            <div className="space-y-3">
+              <div>
+                <Label>Verification code *</Label>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={otpCode}
+                  onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="123456"
+                  className="text-center text-2xl tracking-[0.5em] font-mono"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">Dev mode: use <b>123456</b>. Real Firebase OTP will be sent in production.</p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setPhoneVerifyStep('form'); setOtpCode(''); setConfirmationResult(null) }}>Back</Button>
+                <Button className="bg-sky-500 text-white hover:bg-sky-400" disabled={otpCode.length !== 6} onClick={submitRegister}>Verify & Register</Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div><Label>Name *</Label><Input value={registerForm.name} onChange={e => setRegisterForm({...registerForm, name: e.target.value})} placeholder="John Dlamini" /></div>
+              <div><Label>Email *</Label><Input type="email" value={registerForm.email} onChange={e => setRegisterForm({...registerForm, email: e.target.value})} placeholder="john@email.com" /></div>
+              <div><Label>Password * (min 8 characters)</Label><Input type="password" value={registerForm.password} onChange={e => setRegisterForm({...registerForm, password: e.target.value})} placeholder="••••••••" minLength={8} /></div>
+              <div><Label>Phone *</Label><Input value={registerForm.phone} onChange={e => setRegisterForm({...registerForm, phone: e.target.value})} placeholder="+268 7XXX XXXX" /></div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowRegister(false)}>Cancel</Button>
+                <Button
+                  className="bg-sky-500 text-white hover:bg-sky-400"
+                  disabled={!registerForm.name || !registerForm.email || registerForm.password.length < 8 || !registerForm.phone}
+                  onClick={async () => {
+                    if (!registerForm.phone) return
+                    // Send OTP via Firebase phone auth (falls back to dev mock).
+                    await sendOTP(registerForm.phone)
+                    // If the user is registering without phone, just submit normally.
+                    if (phoneVerifyStep !== 'otp') return
+                  }}
+                >
+                  Send OTP
+                </Button>
+                {/* Quick-register without phone verification (for testing/dev) */}
+                <Button variant="ghost" className="w-full text-xs text-slate-500" onClick={submitRegister}>Skip phone verification →</Button>
+              </DialogFooter>
+              <p className="text-[10px] text-slate-500 text-center">⚠️ Phone OTP via Firebase. Email verification requires a cloud email service.</p>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -2049,6 +2605,38 @@ export default function Home() {
                 setShowProfile(false)
               }}>Save changes</Button>
             </DialogFooter>
+            <Separator />
+            {/* Delete Account — for users who want to leave */}
+            {currentUser?.role !== 'admin' && (
+              <div className="pt-3 border-t border-red-500/20">
+                <p className="text-xs text-slate-500 mb-2">Permanently delete your account and all associated data.</p>
+                <Button
+                  variant="outline"
+                  className="border-red-500/40 text-red-600 hover:bg-red-500/10 w-full"
+                  onClick={async () => {
+                    if (!confirm('Are you absolutely sure? This will permanently delete your account, listings, and messages. This action CANNOT be undone.')) return
+                    if (!confirm('Last warning: Type-confirm by clicking OK one more time to permanently delete.')) return
+                    try {
+                      const res = await fetch('/api/auth/delete-account', { method: 'DELETE', credentials: 'include' })
+                      if (res.ok) {
+                        alert('Account deleted. You will be logged out.')
+                        setCurrentUser(null)
+                        localStorage.removeItem('ec_user')
+                        setShowProfile(false)
+                        setView('browse')
+                      } else {
+                        const data = await res.json()
+                        alert(data.error || 'Failed to delete account')
+                      }
+                    } catch (err: any) {
+                      alert(`Error: ${err.message}`)
+                    }
+                  }}
+                >
+                  <Trash2 className="w-4 h-4 mr-1" /> Delete My Account
+                </Button>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -2171,7 +2759,7 @@ function AdminPanel({ vehicleRequests, adminMessages, adminTeam, respondToMessag
   removeAdmin: (email: string) => void
   setShowAddAdmin: (v: boolean) => void
 }) {
-  const [tab, setTab] = useState<'overview' | 'enquiries' | 'requests' | 'messages' | 'team'>('overview')
+  const [tab, setTab] = useState<'overview' | 'enquiries' | 'requests' | 'messages' | 'users' | 'team' | 'broadcasts'>('overview')
   const [responseText, setResponseText] = useState<string>('')
 
   const stats = {
@@ -2213,8 +2801,14 @@ function AdminPanel({ vehicleRequests, adminMessages, adminTeam, respondToMessag
           <Button size="sm" variant={tab === 'messages' ? 'default' : 'outline'} onClick={() => setTab('messages')}>
             <Mail className="w-3 h-3 mr-1" /> Messages {adminMessages.filter(m => m.status === 'new').length > 0 && <Badge className="ml-1 bg-red-500 text-white text-[10px]">{adminMessages.filter(m => m.status === 'new').length}</Badge>}
           </Button>
+          <Button size="sm" variant={tab === 'users' ? 'default' : 'outline'} onClick={() => setTab('users')}>
+            <UserCog className="w-3 h-3 mr-1" /> Users
+          </Button>
           <Button size="sm" variant={tab === 'team' ? 'default' : 'outline'} onClick={() => setTab('team')}>
             <Users className="w-3 h-3 mr-1" /> Team
+          </Button>
+          <Button size="sm" variant={tab === 'broadcasts' ? 'default' : 'outline'} onClick={() => setTab('broadcasts')}>
+            <Megaphone className="w-3 h-3 mr-1" /> Broadcasts
           </Button>
         </div>
       </div>
@@ -2287,16 +2881,21 @@ function AdminPanel({ vehicleRequests, adminMessages, adminTeam, respondToMessag
                 {msg.response ? (
                   <div className="bg-sky-50 dark:bg-sky-950/30 p-3 rounded-2xl"><div className="text-[10px] text-sky-600 font-semibold mb-1">YOUR RESPONSE:</div><p className="text-xs">{msg.response}</p></div>
                 ) : (
-                  <div className="flex gap-2">
-                    <Input placeholder="Type your response..." value={responseText} onChange={e => setResponseText(e.target.value)} className="text-xs" />
-                    <Button size="sm" className="bg-sky-500 text-white hover:bg-sky-400" onClick={() => { respondToMessage(msg.id, responseText); setResponseText('') }}><Send className="w-3 h-3" /></Button>
-                  </div>
+                  <ReplyBox placeholder="Type your response..." onSend={(text) => { respondToMessage(msg.id, text) }} />
                 )}
                 <div className="text-[10px] text-slate-400 mt-2">{fmtDate(msg.createdAt)}</div>
               </CardContent></Card>
             ))
           )}
         </div>
+      )}
+
+      {tab === 'users' && (
+        <UserManagementTab />
+      )}
+
+      {tab === 'broadcasts' && (
+        <BroadcastsTab />
       )}
 
       {tab === 'team' && (
@@ -2347,6 +2946,153 @@ function MessageInput({ onSend }: { onSend: (text: string) => void }) {
       <Button className="bg-sky-500 text-slate-900 hover:bg-sky-400" onClick={() => { if (text.trim()) { onSend(text); setText('') } }}>
         <Send className="w-4 h-4" />
       </Button>
+    </div>
+  )
+}
+
+// === ReplyBox — multi-line reply input used in message conversations.
+// Self-contained: holds its own text state, clears on successful send, supports
+// Enter-to-send (Shift+Enter for newline) and shows a sending state.
+function ReplyBox({ onSend, placeholder = "Type your reply...", disabled = false }: { onSend: (text: string) => void | Promise<void>; placeholder?: string; disabled?: boolean }) {
+  const [text, setText] = useState('')
+  const [sending, setSending] = useState(false)
+  const handleSend = async () => {
+    if (!text.trim() || sending || disabled) return
+    setSending(true)
+    try {
+      await onSend(text)
+      setText('')
+    } finally {
+      setSending(false)
+    }
+  }
+  return (
+    <div className="flex gap-2 items-end">
+      <Textarea
+        value={text}
+        onChange={e => setText(e.target.value)}
+        placeholder={placeholder}
+        rows={2}
+        disabled={disabled || sending}
+        className="text-xs resize-none"
+        onKeyDown={e => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            handleSend()
+          }
+        }}
+      />
+      <Button size="sm" className="bg-sky-500 text-white hover:bg-sky-400" disabled={sending || !text.trim() || disabled} onClick={handleSend}>
+        {sending ? <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Send className="w-3 h-3" />}
+      </Button>
+    </div>
+  )
+}
+
+// === BroadcastsTab — Admin broadcasts compose + list. Posts to /api/broadcasts
+// and lists existing broadcasts (newest first) with a quick "audience" badge.
+function BroadcastsTab() {
+  const [form, setForm] = useState({ title: '', message: '', audience: 'all' })
+  const [broadcasts, setBroadcasts] = useState<Array<{ id: string; title: string; message: string; audience: string; status: string; createdAt: string }>>([])
+  const [loading, setLoading] = useState(true)
+  const [sending, setSending] = useState(false)
+
+  const fetchBroadcasts = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/broadcasts', { credentials: 'include' })
+      const data = await res.json()
+      setBroadcasts(data.broadcasts || [])
+    } catch {}
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { fetchBroadcasts() }, [fetchBroadcasts])
+
+  const handleSubmit = async () => {
+    if (!form.title || !form.message) return
+    setSending(true)
+    try {
+      const res = await fetch('/api/broadcasts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(form),
+      })
+      if (res.ok) {
+        setForm({ title: '', message: '', audience: 'all' })
+        await fetchBroadcasts()
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Failed to send broadcast')
+      }
+    } catch (err: any) {
+      alert(`Error: ${err.message}`)
+    }
+    setSending(false)
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2"><Megaphone className="w-4 h-4 text-amber-500" /> Compose Broadcast</CardTitle>
+          <CardDescription>Send an announcement banner to all users. Appears at the top of every page until dismissed.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <Label className="text-xs">Title *</Label>
+            <Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="e.g. New Year Special" />
+          </div>
+          <div>
+            <Label className="text-xs">Message *</Label>
+            <Textarea value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} placeholder="Describe the announcement in 1-2 sentences." rows={3} />
+          </div>
+          <div>
+            <Label className="text-xs">Audience</Label>
+            <Select value={form.audience} onValueChange={v => setForm({ ...form, audience: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All visitors</SelectItem>
+                <SelectItem value="registered">Registered users only</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex justify-end pt-2">
+            <Button className="bg-sky-500 text-white hover:bg-sky-400" disabled={!form.title || !form.message || sending} onClick={handleSubmit}>
+              <Send className="w-4 h-4 mr-1" /> {sending ? 'Sending...' : 'Send Broadcast'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Active Broadcasts</CardTitle>
+          <CardDescription>{broadcasts.length} broadcast{broadcasts.length === 1 ? '' : 's'} visible to users.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {loading ? (
+            <p className="text-xs text-slate-500">Loading...</p>
+          ) : broadcasts.length === 0 ? (
+            <p className="text-xs text-slate-500">No active broadcasts.</p>
+          ) : (
+            broadcasts.map(b => (
+              <div key={b.id} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <div className="font-semibold text-sm">{b.title}</div>
+                  <div className="flex items-center gap-1">
+                    <Badge className="bg-amber-500/20 text-amber-300 text-[10px] capitalize">{b.audience}</Badge>
+                    <Badge className="bg-emerald-500/20 text-emerald-300 text-[10px] capitalize">{b.status}</Badge>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-400">{b.message}</p>
+                <div className="text-[10px] text-slate-400 mt-1">{fmtDate(b.createdAt)}</div>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
@@ -2578,5 +3324,121 @@ function Lightbox({ src, alt, onClose }: { src: string; alt: string; onClose: ()
       />
     </div>,
     document.body
+  )
+}
+
+// === UserManagementTab — Admin can search, block, and delete users ===
+function UserManagementTab() {
+  const [searchQuery, setSearchQuery] = useState('')
+  const [users, setUsers] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const fetchUsers = useCallback(async (search?: string) => {
+    setLoading(true)
+    try {
+      const url = `/api/admin/users${search ? `?search=${encodeURIComponent(search)}` : ''}`
+      const res = await fetch(url, { credentials: 'include' })
+      const data = await res.json()
+      setUsers(data.users || [])
+    } catch {}
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { fetchUsers() }, [fetchUsers])
+
+  const handleAction = async (userId: string, action: 'block' | 'unblock' | 'delete', userName: string) => {
+    const confirmMsg = action === 'delete'
+      ? `Permanently delete ${userName}? This removes their account, listings, and messages. CANNOT be undone.`
+      : action === 'block'
+      ? `Block ${userName}? They won't be able to log in.`
+      : `Unblock ${userName}? They can log in again.`
+    if (!confirm(confirmMsg)) return
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ userId, action }),
+      })
+      if (res.ok) {
+        await fetchUsers(searchQuery)
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Action failed')
+      }
+    } catch (err: any) {
+      alert(`Error: ${err.message}`)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2"><UserCog className="w-4 h-4 text-amber-500" /> User Management</CardTitle>
+          <CardDescription>Search by email, phone, or username. Block or delete troublesome users.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex gap-2">
+            <Input
+              placeholder="Search by email, username, phone, or name..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') fetchUsers(searchQuery) }}
+              className="text-sm"
+            />
+            <Button size="sm" className="bg-sky-500 text-white hover:bg-sky-400" onClick={() => fetchUsers(searchQuery)}>
+              <Search className="w-4 h-4" />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {loading ? (
+        <Card><CardContent className="p-8 text-center text-slate-500">Loading users...</CardContent></Card>
+      ) : users.length === 0 ? (
+        <Card><CardContent className="p-8 text-center text-slate-500">No users found.</CardContent></Card>
+      ) : (
+        <div className="space-y-2">
+          <p className="text-xs text-slate-500">{users.length} user{users.length === 1 ? '' : 's'} found</p>
+          {users.map((u) => (
+            <Card key={u.id}>
+              <CardContent className="p-3 flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${u.blocked ? 'bg-red-500/20' : u.role === 'admin' ? 'bg-amber-500/20' : 'bg-sky-500/20'}`}>
+                    {u.blocked ? <Ban className="w-5 h-5 text-red-400" /> : u.role === 'admin' ? <ShieldCheck className="w-5 h-5 text-amber-400" /> : <UserCog className="w-5 h-5 text-sky-400" />}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-semibold text-sm truncate">{u.name}</div>
+                    <div className="text-xs text-slate-500 truncate">@{u.username} · {u.email}</div>
+                    <div className="text-xs text-slate-400">{u.phone || 'No phone'}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {u.blocked && <Badge className="bg-red-500/20 text-red-300 text-[10px]">Blocked</Badge>}
+                  {u.role === 'admin' && <Badge className="bg-amber-500/20 text-amber-300 text-[10px]">Admin</Badge>}
+                  {u.role !== 'admin' && (
+                    <>
+                      {u.blocked ? (
+                        <Button size="sm" variant="outline" className="border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10 px-2" onClick={() => handleAction(u.id, 'unblock', u.name)} title="Unblock user">
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="outline" className="border-amber-500/40 text-amber-600 hover:bg-amber-500/10 px-2" onClick={() => handleAction(u.id, 'block', u.name)} title="Block user">
+                          <Ban className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                      <Button size="sm" variant="outline" className="border-red-500/40 text-red-600 hover:bg-red-500/10 px-2" onClick={() => handleAction(u.id, 'delete', u.name)} title="Delete user">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }

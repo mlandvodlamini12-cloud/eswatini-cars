@@ -15,7 +15,7 @@ datasource db {
 
 model Listing {
   id           String      @id @default(cuid())
-  type         String      // "car" | "bakkie" | "van" | "bike" | "part"
+  type         String
   make         String
   model        String
   year         Int
@@ -29,9 +29,9 @@ model Listing {
   imageUrl     String?
   region       String
   sellerName   String
-  sellerPhone  String      // private — only admin sees this
+  sellerPhone  String
   sellerEmail  String?
-  status       String      @default("active") // "active" | "sold" | "pending"
+  status       String      @default("active")
   featured     Boolean     @default(false)
   views        Int         @default(0)
   createdAt    DateTime    @default(now())
@@ -47,7 +47,7 @@ model Enquiry {
   buyerPhone  String
   buyerEmail  String?
   message     String
-  status      String   @default("new") // "new" | "contacted" | "viewing" | "sold" | "lost"
+  status      String   @default("new")
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   messages    Message[]
@@ -57,7 +57,81 @@ model Message {
   id         String   @id @default(cuid())
   enquiryId  String
   enquiry    Enquiry  @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
-  sender     String   // "broker" | "buyer"
+  sender     String
+  text       String
+  createdAt  DateTime @default(now())
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  username      String   @unique
+  name          String
+  phone         String?
+  phoneVerified Boolean  @default(false)
+  passwordHash  String
+  role          String   @default("user")
+  blocked       Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Broadcast {
+  id         String   @id @default(cuid())
+  title      String
+  message    String
+  audience   String   @default("all")
+  status     String   @default("active")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  expiresAt  DateTime?
+}
+
+model UserRead {
+  id           String    @id @default(cuid())
+  userId       String
+  broadcastId  String
+  readAt       DateTime  @default(now())
+  @@unique([userId, broadcastId])
+}
+
+model VehicleRequest {
+  id              String   @id @default(cuid())
+  requesterName   String
+  requesterEmail  String
+  requesterPhone  String
+  vehicleType     String
+  make            String?
+  model           String?
+  minBudget       String?
+  maxBudget       String?
+  fuelType        String   @default("any")
+  transmission    String   @default("any")
+  region          String
+  description     String?
+  status          String   @default("new")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ContactMessage {
+  id         String   @id @default(cuid())
+  userEmail  String
+  username   String?
+  subject    String
+  message    String
+  response   String?
+  status     String   @default("new")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  replies    ContactReply[]
+}
+
+model ContactReply {
+  id         String   @id @default(cuid())
+  messageId  String
+  message    ContactMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  sender     String
   text       String
   createdAt  DateTime @default(now())
 }
