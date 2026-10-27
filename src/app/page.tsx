@@ -587,15 +587,45 @@ export default function Home() {
           window.localStorage.setItem('cachedListings', JSON.stringify(fetched))
         }
       } catch {}
-      // Apply local sort (server already orders by featured desc, createdAt desc)
+      // Apply local sort — IMPORTANT: we sort on the client even for 'recent'
+      // because the API may ignore the ?sort= param and return its default
+      // (featured desc, createdAt desc) order. If the user explicitly picked
+      // 'Most Recent' after switching from 'Price: Low to High', we MUST
+      // re-sort by date here or the user will see stale price-sorted order
+      // and think "Most Recent sorting is not working".
       let filtered: Listing[] = fetched
-      if (sortBy === 'price-low') filtered.sort((a, b) => a.price - b.price)
-      else if (sortBy === 'price-high') filtered.sort((a, b) => b.price - a.price)
-      // 'recent' is default order from server
+      if (sortBy === 'recent') {
+        filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      } else if (sortBy === 'price-low') {
+        filtered.sort((a, b) => a.price - b.price)
+      } else if (sortBy === 'price-high') {
+        filtered.sort((a, b) => b.price - a.price)
+      }
       return filtered
     } catch (err) {
-      console.error('[apiFetchListings] failed, falling back to static:', err)
-      return STATIC_LISTINGS // graceful fallback if API is unreachable
+      console.error('[apiFetchListings] failed, falling back to cache/static:', err)
+      // Try cached listings first (last successful fetch) so the user doesn't
+      // see an empty grid if the API is temporarily unreachable.
+      try {
+        const cached = window.localStorage.getItem('cachedListings')
+        if (cached) {
+          const parsed = JSON.parse(cached)
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            // Apply the same sort to the cached fallback so the user still
+            // sees their selected sort order, not whatever was cached.
+            const sorted = [...parsed]
+            if (sortBy === 'recent') {
+              sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            } else if (sortBy === 'price-low') {
+              sorted.sort((a, b) => a.price - b.price)
+            } else if (sortBy === 'price-high') {
+              sorted.sort((a, b) => b.price - a.price)
+            }
+            return sorted
+          }
+        }
+      } catch {}
+      return STATIC_LISTINGS // graceful fallback if API is unreachable AND cache is empty
     }
   }, [q, type, fuel, transmission, region, minPrice, maxPrice, sortBy])
 
@@ -1275,7 +1305,7 @@ export default function Home() {
           </div>
           <nav className="flex items-center gap-1 md:gap-2 text-sm flex-wrap">
             <Button variant="ghost" size="sm" onClick={() => setView('browse')} className={view === 'browse' ? 'bg-white/10' : ''}><Car className="w-4 h-4 mr-1" /> Browse</Button>
-            <Button variant="ghost" size="sm" onClick={() => setView('saved')} className={view === 'saved' ? 'bg-white/10' : ''}>
+            <Button variant="ghost" size="sm" onClick={() => currentUser ? setView('saved') : setShowLogin(true)} className={`${view === 'saved' ? 'bg-white/10' : ''} ${!currentUser ? 'opacity-40' : ''}`}>
               <Heart className="w-4 h-4 mr-1" /> Saved
               {savedIds.length > 0 && <Badge className="ml-1 bg-sky-500 text-slate-900 text-[10px] px-1.5 py-0">{savedIds.length}</Badge>}
             </Button>
@@ -2107,18 +2137,22 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      {/* HAMBURGER MENU — top-right corner */}
-      <button
-        onClick={() => setDrawerOpen(true)}
-        className="fixed top-4 right-4 z-[60] bg-sky-500 hover:bg-sky-400 text-white rounded-full w-12 h-12 flex items-center justify-center shadow-2xl shadow-sky-500/30 transition-all hover:scale-110"
-        aria-label="Menu"
-      >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-          <line x1="3" y1="6" x2="21" y2="6" />
-          <line x1="3" y1="12" x2="21" y2="12" />
-          <line x1="3" y1="18" x2="21" y2="18" />
-        </svg>
-      </button>
+      {/* HAMBURGER MENU — top-right corner.
+          Hidden when the drawer is open so it doesn't visually overlap and
+          block the X (close) button at the top-right of the drawer panel. */}
+      {!drawerOpen && (
+        <button
+          onClick={() => setDrawerOpen(true)}
+          className="fixed top-4 right-4 z-[60] bg-sky-500 hover:bg-sky-400 text-white rounded-full w-12 h-12 flex items-center justify-center shadow-2xl shadow-sky-500/30 transition-all hover:scale-110"
+          aria-label="Menu"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
+      )}
 
       {/* SIDE DRAWER — slides in from the right */}
       {drawerOpen && (
@@ -2175,21 +2209,37 @@ export default function Home() {
                 )}
               </button>
 
-              {/* Saved Vehicles */}
+              {/* Saved Vehicles — faint for unregistered */}
               <button
-                onClick={() => { setView('saved'); setDrawerOpen(false) }}
-                className="w-full flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all text-left"
+                onClick={() => {
+                  if (currentUser) {
+                    setView('saved')
+                    setDrawerOpen(false)
+                  } else {
+                    setShowLogin(true)
+                  }
+                }}
+                className={`w-full flex items-center justify-between p-3 rounded-2xl border transition-all text-left ${
+                  currentUser
+                    ? 'bg-white/5 hover:bg-white/10 border-white/10'
+                    : 'bg-white/[0.02] border-white/5 opacity-50 cursor-not-allowed'
+                }`}
+                title={currentUser ? 'Your saved vehicles' : 'Log in to save vehicles'}
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center">
-                    <Heart className="w-5 h-5 text-red-400" />
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${currentUser ? 'bg-red-500/20' : 'bg-slate-700/40'}`}>
+                    <Heart className={`w-5 h-5 ${currentUser ? 'text-red-400' : 'text-slate-500'}`} />
                   </div>
                   <div>
                     <div className="text-sm font-semibold text-white">Saved Vehicles</div>
-                    <div className="text-xs text-slate-400">Your favorites</div>
+                    <div className="text-xs text-slate-400">
+                      {currentUser
+                        ? `${savedIds.length} saved vehicle${savedIds.length === 1 ? '' : 's'}`
+                        : 'Log in to save vehicles'}
+                    </div>
                   </div>
                 </div>
-                {savedIds.length > 0 && (
+                {currentUser && savedIds.length > 0 && (
                   <Badge className="bg-red-500 text-white text-[10px]">{savedIds.length}</Badge>
                 )}
               </button>

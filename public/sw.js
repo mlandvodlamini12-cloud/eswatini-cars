@@ -2,6 +2,21 @@
 // Provides offline caching for the app shell
 //
 // VERSION HISTORY:
+//   v5 (2026-10-27 PM2): Restore previously-working UI features that regressed
+//                        during the auth migration:
+//                        - 'Saved' button in header is faint (opacity-40) when
+//                          logged out + requires login to view
+//                        - 'Saved Vehicles' drawer item is faint + grey when
+//                          logged out + requires login to view
+//                        - Hamburger button hidden when drawer is open so the
+//                          X (close) button at the top of the drawer is
+//                          visible and clickable
+//                        - 'Most Recent' sort now actually re-sorts listings
+//                          on the client (was relying on server default order,
+//                          which was being masked by featured-first ordering)
+//                        - apiFetchListings now falls back to cached listings
+//                          if the API is unreachable (was returning empty
+//                          array, causing the homepage to look broken)
 //   v4 (2026-10-27 PM): Fix "r.filter is not a function" — root caused to a
 //                       non-array cachedListings value in localStorage (likely
 //                       written by a pre-Vercel build of the app). Page.tsx
@@ -13,7 +28,7 @@
 //   v2: initial SW for the Vercel-hosted app
 //   v1: legacy SW from the Netlify-hosted app
 
-const CACHE_NAME = 'eswatini-cars-v4';
+const CACHE_NAME = 'eswatini-cars-v5';
 const APP_SHELL = [
   '/',
   '/manifest.json',
