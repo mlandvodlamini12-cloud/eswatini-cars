@@ -438,3 +438,36 @@ Stage Summary:
   2. Long-press the reload button → tap "Hard reload" (or open in incognito tab to test)
   3. If that doesn't work: Settings → Site settings → eswatini-cars.vercel.app → Clear data
   4. APK users: Settings → Apps → Eswatini Car → Storage → Clear data, then reopen
+
+---
+Task ID: client-side-exception-fix-2
+Agent: main
+Task: Deploy the SW v3 + error boundary fix to Vercel production.
+
+Work Log:
+- User provided Vercel API token (team-scoped, "No Expiration")
+- Token returned 404 on /v2/user endpoint — confirmed it's a team-scoped token (not personal), so vercel CLI's `whoami` check fails
+- Workaround: set VERCEL_ORG_ID + VERCEL_PROJECT_ID env vars + --token flag → bypasses whoami check and goes straight to deploy
+- Restored /home/z/my-project/.vercel/project.json with:
+  * projectId: prj_j8kRtTXmiUqdiiZ85BdexeOqAGRt
+  * orgId: team_kaqwxaOEa2FvSVHo3n9sSYOO
+- Ran: vercel deploy --prod --force --yes --token=$TOKEN
+- Deploy succeeded: https://eswatini-cars-pefkrrjih-eswatini-cars.vercel.app → aliased to https://eswatini-cars.vercel.app
+- Build time: 46s, no errors, no warnings
+- Verified new code is live:
+  * GET /sw.js → contains "eswatini-cars-v3" (new cache version) ✅
+  * GET /api/health → 200, all 6 env vars set ✅
+  * GET / → HTTP 200, 10 chunks loaded (3 new chunk hashes: 0002fb452912bbc6, 3e2ed53216e94324, 7d427a1c79cd0d76, turbopack-103d546415831aaa — these are the new error boundary + SW chunks)
+- Browser verification (fresh session + iPhone 14 mobile emulation):
+  * Page renders correctly with all listings ✅
+  * Zero console errors ✅
+  * Zero page errors ✅
+  * Title: "ESWATINI CARS — Managed Vehicle Marketplace" ✅
+  * Snapshot shows working UI: header nav (Browse/Saved/Requests/Messages/Login/Sell), hero "Find your next vehicle in Eswatini", category tiles with correct counts (Cars 4, Bakkies 1, Vans 1, Bikes 1, Parts 1) ✅
+
+Stage Summary:
+- ✅ DEPLOY COMPLETE: https://eswatini-cars.vercel.app
+- New SW (v3) will auto-activate on user devices within ~24h (SW update check on next navigation), force-clearing the old v2 cache and reloading all open tabs via client.navigate()
+- New error.tsx is live: if any future client-side exception fires, users will see a friendly "Something went wrong" page with a "Reload app" button instead of the blank white "Application error" page
+- All users who had the broken state will be auto-recovered on next visit (no manual clear-data needed in most cases)
+- If user still sees the broken page after 24h, they should: Chrome → long-press reload → "Hard reload" — or for APK users: Settings → Apps → Eswatini Car → Clear data
