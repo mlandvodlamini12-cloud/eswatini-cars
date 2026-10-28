@@ -1478,14 +1478,29 @@ export default function Home() {
 
   // Initial messages fetch + 30s auto-refresh so new admin replies appear
   // without the user having to manually reload. Same cadence as listings.
+  //
+  // CRITICAL: This useEffect depends on `currentUser` so that it RE-RUNS
+  // whenever the user logs in or out. Without this dependency, fetchMessages
+  // would only run once on mount (when the user is not yet authenticated)
+  // and return 401 — leaving the inbox empty until the next 30s tick.
+  // This was the bug: user logs in → sees "You haven't sent any messages yet"
+  // even though they HAVE sent messages, just because fetchMessages ran
+  // before the session cookie was established.
   // MUST come AFTER fetchMessages definition to avoid temporal dead zone.
   useEffect(() => {
+    // Only fetch if there's a logged-in user. The /api/messages endpoint
+    // returns 401 for unauthenticated requests, so fetching when logged
+    // out is wasteful and would log errors.
+    if (!currentUser) {
+      setAdminMessages([])
+      return
+    }
     fetchMessages()
     const interval = setInterval(() => {
       fetchMessages()
     }, 30000) // 30s
     return () => clearInterval(interval)
-  }, [fetchMessages])
+  }, [fetchMessages, currentUser])
 
   // Submit a NEW message to admin — POSTs to /api/messages which persists
   // to Turso DB. Then re-fetches the full list so the UI reflects the actual
@@ -3576,20 +3591,29 @@ function AdminPanel({ vehicleRequests, adminMessages, adminTeam, respondToMessag
                       </Badge>
                     </div>
 
-                    {/* Original user message — shown on the LEFT (admin sees user on left) */}
+                    {/* Original user message — shown on the LEFT (admin sees user on left).
+                        Label uses the username if available, otherwise falls back to the
+                        email prefix. This is what the user asked for: 'user in admin
+                        dashboard must be identified by username not You'. */}
                     <div className="flex justify-start mb-2">
                       <div className="bg-sky-500/20 border border-sky-500/30 rounded-2xl rounded-tl-sm px-3 py-2 max-w-[80%]">
-                        <div className="text-[10px] text-sky-300 font-semibold mb-0.5">{msg.userEmail.split('@')[0].toUpperCase()}</div>
+                        <div className="text-[10px] text-sky-300 font-semibold mb-0.5">
+                          {(msg.username || msg.userEmail.split('@')[0]).toUpperCase()}
+                        </div>
                         <p className="text-xs text-white whitespace-pre-wrap break-words">{msg.message}</p>
                         <div className="text-[9px] text-slate-500 mt-1">{fmtDate(msg.createdAt)}</div>
                       </div>
                     </div>
 
                     {/* All replies in the thread, sorted chronologically.
-                        Admin replies on the RIGHT (admin's own messages),
-                        User replies on the LEFT (admin sees user on left). */}
+                        Admin replies on the RIGHT (admin's own messages, labeled 'YOU (ADMIN)'),
+                        User replies on the LEFT (labeled with the user's username, NOT 'You'). */}
                     {replies.map((reply) => {
                       const isAdminReply = reply.sender === 'admin'
+                      // For user replies in the admin view, use the username (not 'You').
+                      // The user explicitly requested: 'user in admin dashboard must be
+                      // identified by username not You'.
+                      const userLabel = (msg.username || msg.userEmail.split('@')[0]).toUpperCase()
                       return (
                         <div key={reply.id} className={`flex mb-2 ${isAdminReply ? 'justify-end' : 'justify-start'}`}>
                           <div className={`rounded-2xl px-3 py-2 max-w-[80%] ${
@@ -3598,7 +3622,7 @@ function AdminPanel({ vehicleRequests, adminMessages, adminTeam, respondToMessag
                               : 'bg-sky-500/20 border border-sky-500/30 rounded-tl-sm'
                           }`}>
                             <div className={`text-[10px] font-semibold mb-0.5 ${isAdminReply ? 'text-amber-300' : 'text-sky-300'}`}>
-                              {isAdminReply ? 'YOU (ADMIN)' : msg.userEmail.split('@')[0].toUpperCase()}
+                              {isAdminReply ? 'YOU (ADMIN)' : userLabel}
                             </div>
                             <p className={`text-xs whitespace-pre-wrap break-words ${isAdminReply ? 'text-slate-200' : 'text-white'}`}>
                               {reply.text}
