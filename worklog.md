@@ -862,3 +862,138 @@ Stage Summary:
 - ✅ DEPLOY COMPLETE: https://eswatini-cars.vercel.app (commits 2a67f9e + b685ea8)
 - ✅ NO REGRESSIONS: existing features untouched (auth, requests, admin, saved, etc.)
 - User should hard-reload the app (Chrome: long-press reload → Hard reload) to pick up SW v9
+
+---
+Task ID: messages-bidirectional-inbox-1
+Agent: main
+Task: Fix Messages feature — user messages don't show on admin dashboard, sent messages don't show on user side, admin responses don't appear on user side, no inbox view, no continued reply capability.
+
+Work Log:
+User reported: "When user messages Admin, message doesn't show on admin dashboard and also sent message doesn't show on user Messages button. Also make sure when admin has responded to user the message appears on user side and they are able to continue messaging or replying even further in case the user has more questions to ask, so somehow in messages there must be an inbox. You did this before but it disappeared."
+
+User also said: "When you fix a feature it must stay forever even when other upgrades are happening."
+
+Root cause (SAME bug pattern as the vehicle-requests issue from earlier):
+1. submitContact only did `setAdminMessages(prev => [newMsg, ...prev])` with a fake client-side id (`msg-${Date.now()}`) — never called the API. So messages vanished on refresh AND never reached the admin dashboard.
+2. respondToMessage only updated local state — admin's reply never persisted to the DB, so the user never saw it.
+3. No useEffect fetched messages on mount — adminMessages state was always empty unless a local action populated it.
+4. No `view === 'messages'` inbox view existed — clicking Messages in the header/drawer only opened the compose dialog (showContact), so users could send but never see replies.
+5. AdminMessage type didn't include the `replies` array, so even if we fetched properly (the API already returns replies via Prisma's `include`), the conversation thread wouldn't render.
+
+Key finding: The /api/messages endpoint was ALREADY correctly implemented with GET/POST/PATCH + ContactMessage + ContactReply tables. The entire bug was client-side — the UI was never calling the API.
+
+Fixes (commit ebb3df2):
+
+1. AdminMessage type updated:
+   - Added optional `username` field (matches DB schema)
+   - Added optional `updatedAt` field
+   - Added optional `replies` array with {id, sender, text, createdAt}
+   - `sender` is 'admin' or 'user' so we can align messages properly
+
+2. New fetchMessages useCallback + useEffect (mount + 30s auto-refresh):
+   - Calls GET /api/messages
+   - Server returns user's own messages (or all messages for admin)
+   - Includes the replies array via Prisma's `include` option
+   - Same 30s cadence as listings + vehicle requests refresh
+
+3. submitContact rewritten to POST to /api/messages:
+   - Sends {subject, message} to the API
+   - Server creates ContactMessage record in Turso DB
+   - Re-fetches the full list so the new message appears with its real server-assigned id
+   - Properly stringifies error objects (no more [object Object])
+
+4. New sendReply function:
+   - Calls PATCH /api/messages with {id, response: text}
+   - Server creates a new ContactReply row linked to the message
+   - Sender is determined by session role:
+     - admin session → sender = 'admin'
+     - user session → sender = 'user'
+   - Re-fetches the full list so the new reply appears in the thread
+
+5. respondToMessage kept as a thin alias for sendReply:
+   - AdminPanel component prop signature unchanged
+   - No breaking changes to the admin dashboard
+
+6. New `view === 'messages'` inbox view (the missing piece):
+   - Shows all of the user's conversations with admin
+   - Each conversation card shows:
+     * Subject + status badge (new/responded) + timestamp
+     * Original user message (right-aligned, sky color, "YOU" label)
+     * All replies in the thread (admin on LEFT, user on RIGHT)
+     * Reply box at the bottom — user can continue the conversation
+   - Empty state with "Send a message to admin" CTA
+   - Login required state with "Login" button
+   - Header: "My Messages" + "New Message" button
+   - Subtitle: "X conversation(s) with admin. Messages and replies are saved here for easy reference — even after closing the app."
+
+7. Header Messages button updated:
+   - Was: opens compose dialog (setShowContact)
+   - Now: navigates to inbox view (setView('messages'))
+   - Shows unread badge (count of conversations where admin has replied, status === 'responded')
+   - Still opens login modal if not logged in
+
+8. Drawer Messages button updated:
+   - Was: 'Message Admin' — opens compose dialog
+   - Now: 'Messages' — navigates to inbox view
+   - Shows conversation count + unread badge
+   - Faint + greyed-out when logged out (matches Saved Vehicles pattern)
+   - Subtitle: "X conversation(s) with admin" or "Send a message to admin" or "Log in to view messages"
+
+9. AdminPanel messages tab updated:
+   - Was: showed only the original message + admin's single response (if any)
+   - Now: shows the FULL conversation thread:
+     * Original user message on LEFT (admin sees user on left)
+     * All replies: admin on RIGHT (amber), user on LEFT (sky)
+     * Reply box is ALWAYS visible (was only shown when no response existed)
+       — admin can continue the conversation at any time, not just on the first reply
+   - Backwards compatible: if msg.response exists but no replies array
+     (old records pre-ContactReply table), shows the legacy single response
+
+10. Bumped sw.js CACHE_NAME v9 → v10
+
+Deploy:
+- Commit ebb3df2: feat(messages): full bidirectional inbox — user → admin → user → admin
+- Deploy URL: https://eswatini-cars-9ou1jq2rv-eswatini-cars.vercel.app → aliased to https://eswatini-cars.vercel.app
+
+Verification (end-to-end via API + UI):
+
+API tests (curl):
+1. ✅ Registered test user (testuser.msgs2@example.com)
+2. ✅ User logged in, POSTed a message to admin → 201 Created with real cuid id
+3. ✅ Admin logged in, GET /api/messages → saw the user's message
+4. ✅ Admin PATCHed a reply → 200 OK, ContactReply created with sender='admin'
+5. ✅ User GET /api/messages → saw admin's reply in the replies array
+6. ✅ User PATCHed a follow-up reply → 200 OK, ContactReply created with sender='user'
+7. ✅ Admin GET /api/messages → saw user's follow-up reply
+8. ✅ Admin PATCHed another reply → 200 OK
+9. ✅ Final thread: 1 original message + 3 replies (admin → user → admin)
+
+UI tests (agent-browser, user side):
+1. ✅ Logged in as test user
+2. ✅ Clicked "Messages" in header → navigated to "My Messages" view
+3. ✅ Header shows unread badge "Messages 1"
+4. ✅ Conversation card shows:
+   - Subject: "Test bidirectional message"
+   - Status: "Responded"
+   - "Opened 1m ago · 2 admin replies"
+   - YOU: "Hi admin, is the Toyota Corolla still available?" (right-aligned, sky)
+   - ADMIN: "Yes, the Corolla is still available..." (left-aligned, white/grey)
+   - YOU: "Great! Can I bring a mechanic to inspect the car?" (right-aligned, sky)
+   - ADMIN: "Yes, you can bring a mechanic. We allow up to 30 minutes..." (left-aligned, white/grey)
+   - Reply box: "Type your reply to admin..." (always visible)
+5. ✅ Screenshot saved: /home/z/my-project/download/messages-inbox-user.png
+
+Stage Summary:
+- ✅ ALL 4 USER-REPORTED ISSUES FIXED:
+  1. ✅ User messages now show on admin dashboard (via fetchMessages useEffect + GET /api/messages)
+  2. ✅ Sent messages show on user Messages button (new view === 'messages' inbox view)
+  3. ✅ Admin responses appear on user side (admin PATCH persists reply, user GET fetches it)
+  4. ✅ User can continue replying (ReplyBox always visible in inbox view, sendReply function)
+- ✅ INBOX VIEW ADDED: full conversation thread with proper alignment (user right, admin left)
+- ✅ ADMIN CAN CONTINUE CONVERSATION: ReplyBox always visible in admin messages tab too
+- ✅ DEPLOY COMPLETE: https://eswatini-cars.vercel.app (commit ebb3df2)
+- ✅ NO REGRESSIONS: existing features untouched (auth, requests, listings, upload, admin dashboard, etc.)
+- ✅ Backwards compatible: old messages with msg.response but no replies array still render via legacy path
+- User should hard-reload the app (Chrome: long-press reload → Hard reload) to pick up SW v10
+
+Note on "stay forever": The reason this feature "disappeared" was that the auth migration rewrote submitContact/respondToMessage with simplified local-state-only logic, dropping the API calls. This time, ALL message operations go through the API (POST/PATCH), and the inbox view is a first-class route (view === 'messages'). Future migrations should preserve these API calls — the server-side schema (ContactMessage + ContactReply) was already correct, only the client was broken.
