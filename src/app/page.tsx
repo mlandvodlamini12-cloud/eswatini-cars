@@ -881,7 +881,16 @@ export default function Home() {
     })
   }
 
-  // Upload multiple files in PARALLEL — with client-side compression first
+  // Upload multiple files in PARALLEL — with client-side compression first,
+  // then upload each to Cloudinary via /api/upload.
+  //
+  // CRITICAL: We NO LONGER store base64 data URLs in the listing record.
+  // Each base64 image is ~300KB of text; with 6 photos that's ~2.4MB per
+  // listing — which caused POST /api/listings to fail (body too large for
+  // Vercel/Turso) and GET /api/listings to return 43MB+ responses.
+  //
+  // Now each image is uploaded to Cloudinary immediately, and only the
+  // short Cloudinary URL (~80 chars) is stored in sellForm.imageUrl.
   const handleMultiImageUpload = async (files: FileList | File[]) => {
     const fileArr = Array.from(files)
     if (fileArr.length === 0) return
@@ -901,33 +910,70 @@ export default function Home() {
     const toUpload = fileArr.slice(0, available)
     setUploading(true)
 
-    // Step 1: Compress all images in parallel (in the browser)
-    const compressedFiles = await Promise.all(
-      toUpload.map(f => compressImage(f).catch(() => f))
-    )
+    try {
+      // Step 1: Compress all images in parallel (in the browser).
+      // This makes a 3MB photo become ~200KB — 15x faster upload.
+      const compressedFiles = await Promise.all(
+        toUpload.map(f => compressImage(f).catch(() => f))
+      )
 
-    // Step 2: Convert to base64 data URLs (no server upload needed for static mode)
-    const dataUrls = await Promise.all(
-      compressedFiles.map(file => {
-        return new Promise<string>((resolve) => {
-          const reader = new FileReader()
-          reader.onload = () => resolve(reader.result as string)
-          reader.onerror = () => resolve('')
-          reader.readAsDataURL(file)
+      // Step 2: Convert each compressed file to a base64 data URL
+      // (needed to send to the /api/upload endpoint).
+      const dataUrls = await Promise.all(
+        compressedFiles.map(file => {
+          return new Promise<string>((resolve) => {
+            const reader = new FileReader()
+            reader.onload = () => resolve(reader.result as string)
+            reader.onerror = () => resolve('')
+            reader.readAsDataURL(file)
+          })
         })
-      })
-    )
-    const newUrls = dataUrls.filter(u => u !== '')
+      )
 
-    if (newUrls.length > 0) {
-      setSellForm(f => {
-        const imgs = f.imageUrl ? f.imageUrl.split('|').filter(Boolean) : []
-        return { ...f, imageUrl: [...imgs, ...newUrls].join('|') }
-      })
-    } else {
-      alert('Upload failed. Please try again with a smaller image.')
+      // Step 3: Upload each data URL to Cloudinary via /api/upload.
+      // All uploads run in parallel for speed — 6 images upload in roughly
+      // the same time as 1 image (network round-trips overlap).
+      const validDataUrls = dataUrls.filter(u => u !== '')
+      const uploadResults = await Promise.all(
+        validDataUrls.map(async (dataUrl) => {
+          try {
+            const res = await fetch('/api/upload', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ image: dataUrl }),
+            })
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}))
+              console.error('[upload] failed:', err)
+              return null
+            }
+            const data = await res.json()
+            return data.url as string
+          } catch (err) {
+            console.error('[upload] network error:', err)
+            return null
+          }
+        })
+      )
+
+      const newUrls = uploadResults.filter((u): u is string => u !== null && typeof u === 'string')
+
+      if (newUrls.length > 0) {
+        setSellForm(f => {
+          const imgs = f.imageUrl ? f.imageUrl.split('|').filter(Boolean) : []
+          // Only append Cloudinary URLs (https://...) — never base64 data URLs.
+          // This keeps the listing record small and the POST fast.
+          return { ...f, imageUrl: [...imgs, ...newUrls].join('|') }
+        })
+      } else {
+        alert('Upload failed. Please try again with a smaller image.')
+      }
+    } catch (err: any) {
+      console.error('[handleMultiImageUpload] failed:', err)
+      alert(`Upload failed: ${err?.message || 'Unknown error'}. Please try again.`)
+    } finally {
+      setUploading(false)
     }
-    setUploading(false)
   }
 
   const submitSell = async () => {
@@ -989,7 +1035,18 @@ export default function Home() {
     } catch (err: any) {
       setUploading(false)
       console.error('[submitSell] failed:', err)
-      alert(`Failed to post listing: ${err.message || err}. Please try again.`)
+      // Properly stringify the error so the user sees what actually went wrong
+      // instead of '[object Object]'. This was the bug: when `err` was an
+      // object without a `.message` property (e.g., a fetch failure),
+      // `err.message || err` returned the object itself, which stringified
+      // to '[object Object]'.
+      const errMsg =
+        typeof err === 'string' ? err :
+        err?.message ? err.message :
+        err?.error && typeof err.error === 'string' ? err.error :
+        err?.toString && typeof err.toString === 'function' && err.toString() !== '[object Object]' ? err.toString() :
+        'Unknown error'
+      alert(`Failed to post listing: ${errMsg}. Please try again.`)
     }
   }
 

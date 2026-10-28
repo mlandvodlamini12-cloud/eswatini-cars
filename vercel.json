@@ -4,5 +4,10 @@
       "path": "/api/cron/cleanup-images",
       "schedule": "0 3 * * 0"
     }
-  ]
+  ],
+  "functions": {
+    "api/upload/route.ts": {
+      "maxDuration": 30
+    }
+  }
 }
