@@ -79,11 +79,22 @@ type VehicleRequest = {
 type AdminMessage = {
   id: string
   userEmail: string
+  username?: string | null
   subject: string
   message: string
   response: string | null
   status: string
   createdAt: string
+  updatedAt?: string
+  // Replies are loaded from the ContactReply relation via Prisma's `include`.
+  // Each reply has a `sender` field ('admin' or 'user') so we can render the
+  // conversation thread with proper alignment (admin on left, user on right).
+  replies?: Array<{
+    id: string
+    sender: 'admin' | 'user' | string
+    text: string
+    createdAt: string
+  }>
 }
 
 type User = {
@@ -1438,29 +1449,122 @@ export default function Home() {
     }
   }
 
-  // Contact Admin
+  // Contact Admin — full bidirectional messaging.
+  // Previously submitContact/respondToMessage only updated local React state,
+  // so messages vanished on refresh and never reached the other party.
+  // Now ALL three operations (send new, admin reply, user reply) call the API
+  // which persists to Turso DB via the ContactMessage + ContactReply models.
   const [contactForm, setContactForm] = useState({ subject: '', message: '' })
   const [contactSubmitted, setContactSubmitted] = useState(false)
+  const [sendingReply, setSendingReply] = useState<string | null>(null) // tracks which thread is currently sending
 
-  const submitContact = () => {
-    const newMsg: AdminMessage = {
-      id: `msg-${Date.now()}`,
-      userEmail: currentUser?.email || 'anonymous',
-      subject: contactForm.subject,
-      message: contactForm.message,
-      response: null,
-      status: 'new',
-      createdAt: new Date().toISOString(),
+  // Fetch messages from the API. Server returns:
+  //   - For admin: ALL messages (with replies)
+  //   - For regular user: only their own messages (with replies)
+  // This is what makes the inbox work — without it, messages are only in
+  // local React state and disappear on refresh.
+  const fetchMessages = useCallback(async () => {
+    try {
+      const res = await fetch('/api/messages', { credentials: 'include' })
+      if (!res.ok) return
+      const data = await res.json()
+      if (Array.isArray(data?.messages)) {
+        setAdminMessages(data.messages)
+      }
+    } catch {
+      // Silent failure — don't crash the page if the API is unreachable.
     }
-    setAdminMessages(prev => [newMsg, ...prev])
-    setContactSubmitted(true)
-    setContactForm({ subject: '', message: '' })
+  }, [])
+
+  // Initial messages fetch + 30s auto-refresh so new admin replies appear
+  // without the user having to manually reload. Same cadence as listings.
+  // MUST come AFTER fetchMessages definition to avoid temporal dead zone.
+  useEffect(() => {
+    fetchMessages()
+    const interval = setInterval(() => {
+      fetchMessages()
+    }, 30000) // 30s
+    return () => clearInterval(interval)
+  }, [fetchMessages])
+
+  // Submit a NEW message to admin — POSTs to /api/messages which persists
+  // to Turso DB. Then re-fetches the full list so the UI reflects the actual
+  // DB state (server assigns id, timestamp, etc.).
+  const submitContact = async () => {
+    if (!currentUser) {
+      setShowLogin(true)
+      return
+    }
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          subject: contactForm.subject,
+          message: contactForm.message,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `API returned ${res.status}`)
+      }
+      setContactSubmitted(true)
+      setContactForm({ subject: '', message: '' })
+      // Re-fetch so the new message appears in the inbox immediately
+      // with its real server-assigned id.
+      await fetchMessages()
+    } catch (err: any) {
+      const errMsg =
+        typeof err === 'string' ? err :
+        err?.message ? err.message :
+        err?.error && typeof err.error === 'string' ? err.error :
+        'Unknown error'
+      alert(`Failed to send message: ${errMsg}. Please try again.`)
+    }
   }
 
-  // Admin: respond to message
-  const respondToMessage = (id: string, response: string) => {
-    setAdminMessages(prev => prev.map(m => m.id === id ? { ...m, response, status: 'responded' } : m))
-  }
+  // Send a reply on an EXISTING message thread.
+  // Used by BOTH admin (responding to user) AND user (replying to admin's
+  // response). The server determines the sender based on the session role:
+  //   - admin session → sender = 'admin'
+  //   - user session → sender = 'user'
+  // The reply is persisted as a new ContactReply row linked to the message.
+  const sendReply = useCallback(async (messageId: string, text: string) => {
+    if (!text.trim()) return
+    setSendingReply(messageId)
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ id: messageId, response: text }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `API returned ${res.status}`)
+      }
+      // Re-fetch so the new reply appears in the thread immediately
+      // with its real server-assigned id + timestamp + sender.
+      await fetchMessages()
+    } catch (err: any) {
+      const errMsg =
+        typeof err === 'string' ? err :
+        err?.message ? err.message :
+        err?.error && typeof err.error === 'string' ? err.error :
+        'Unknown error'
+      alert(`Failed to send reply: ${errMsg}. Please try again.`)
+    } finally {
+      setSendingReply(null)
+    }
+  }, [fetchMessages])
+
+  // Legacy alias for backwards compat with the AdminPanel component prop.
+  // The admin "respond to message" flow now routes through sendReply (which
+  // calls PATCH /api/messages and persists the reply to the DB).
+  const respondToMessage = useCallback((id: string, response: string) => {
+    sendReply(id, response)
+  }, [sendReply])
 
   // Admin: add team member
   const [newAdminForm, setNewAdminForm] = useState({ email: '', name: '', permissions: ['view', 'delete'] })
@@ -1547,8 +1651,15 @@ export default function Home() {
               <Search className="w-4 h-4 mr-1" /> Requests
               {vehicleRequests.length > 0 && <Badge className="ml-1 bg-sky-500 text-white text-[10px] px-1.5 py-0">{vehicleRequests.length}</Badge>}
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => currentUser ? setShowContact(true) : setShowLogin(true)} className={currentUser ? '' : 'opacity-40'}>
+            <Button variant="ghost" size="sm" onClick={() => currentUser ? setView('messages') : setShowLogin(true)} className={`${view === 'messages' ? 'bg-white/10' : ''} ${currentUser ? '' : 'opacity-40'}`}>
               <Mail className="w-4 h-4 mr-1" /> Messages
+              {/* Unread badge: count admin replies the user hasn't seen yet.
+                  We approximate "unread" as conversations where status === 'responded'
+                  (meaning admin has replied at least once). */}
+              {currentUser && (() => {
+                const unread = adminMessages.filter(m => m.status === 'responded').length
+                return unread > 0 ? <Badge className="ml-1 bg-red-500 text-white text-[10px] px-1.5 py-0">{unread}</Badge> : null
+              })()}
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setView('how')} className={view === 'how' ? 'bg-white/10' : ''}>How It Works</Button>
             {currentUser ? (
@@ -2047,6 +2158,129 @@ export default function Home() {
                 <Button onClick={openNewRequest} className="bg-sky-500 text-white hover:bg-sky-400">
                   <Search className="w-4 h-4 mr-1" /> New Request
                 </Button>
+              </>
+            )}
+          </section>
+        )}
+
+        {view === 'messages' && (
+          <section className="space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                <Mail className="w-6 h-6 text-sky-400" /> My Messages
+              </h2>
+              <Button size="sm" onClick={() => { setContactSubmitted(false); setShowContact(true) }} className="bg-sky-500 text-white hover:bg-sky-400">
+                <Plus className="w-4 h-4 mr-1" /> New Message
+              </Button>
+            </div>
+            {!currentUser ? (
+              <Card className="border-dashed">
+                <CardContent className="p-8 text-center text-slate-500">
+                  <Users className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                  Please log in to view your messages with admin.
+                  <div className="mt-3">
+                    <Button size="sm" onClick={() => setShowLogin(true)}>Login</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : adminMessages.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="p-8 text-center text-slate-500">
+                  <Mail className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                  You haven't sent any messages yet.
+                  <div className="mt-3">
+                    <Button size="sm" onClick={() => { setContactSubmitted(false); setShowContact(true) }}>Send a message to admin</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                <p className="text-xs text-slate-400">
+                  {adminMessages.length} conversation{adminMessages.length === 1 ? '' : 's'} with admin. Messages and replies are saved here for easy reference — even after closing the app.
+                </p>
+                {adminMessages.map((msg) => {
+                  // Build the full conversation thread: original message + all replies
+                  // sorted chronologically. Each reply has a `sender` field so we can
+                  // align admin replies on the left and user replies on the right.
+                  const replies = Array.isArray(msg.replies) ? msg.replies : []
+                  // Count unread: admin replies the user hasn't seen yet (we approximate
+                  // using status === 'responded' for the first admin reply, and use
+                  // the reply sender for subsequent ones).
+                  const adminReplyCount = replies.filter(r => r.sender === 'admin').length
+                  return (
+                    <Card key={msg.id}>
+                      <CardContent className="p-4">
+                        {/* Conversation header */}
+                        <div className="flex items-start justify-between gap-2 mb-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-semibold text-sm text-white">{msg.subject}</div>
+                            <div className="text-xs text-slate-500">
+                              Opened {fmtDate(msg.createdAt)}
+                              {adminReplyCount > 0 && (
+                                <span className="ml-2 text-emerald-400">· {adminReplyCount} admin {adminReplyCount === 1 ? 'reply' : 'replies'}</span>
+                              )}
+                            </div>
+                          </div>
+                          <Badge className={`shrink-0 ${msg.status === 'new' ? 'bg-amber-500/20 text-amber-300' : msg.status === 'responded' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-sky-500/20 text-sky-300'} capitalize`}>
+                            {msg.status}
+                          </Badge>
+                        </div>
+
+                        {/* Original user message — shown on the right (user is the sender) */}
+                        <div className="flex justify-end mb-2">
+                          <div className="bg-sky-500/20 border border-sky-500/30 rounded-2xl rounded-tr-sm px-3 py-2 max-w-[80%]">
+                            <div className="text-[10px] text-sky-300 font-semibold mb-0.5">YOU</div>
+                            <p className="text-xs text-white whitespace-pre-wrap break-words">{msg.message}</p>
+                          </div>
+                        </div>
+
+                        {/* All replies in the thread, sorted chronologically */}
+                        {replies.map((reply) => {
+                          const isAdminReply = reply.sender === 'admin'
+                          return (
+                            <div key={reply.id} className={`flex mb-2 ${isAdminReply ? 'justify-start' : 'justify-end'}`}>
+                              <div className={`rounded-2xl px-3 py-2 max-w-[80%] ${
+                                isAdminReply
+                                  ? 'bg-white/5 border border-white/10 rounded-tl-sm'
+                                  : 'bg-sky-500/20 border border-sky-500/30 rounded-tr-sm'
+                              }`}>
+                                <div className={`text-[10px] font-semibold mb-0.5 ${isAdminReply ? 'text-amber-300' : 'text-sky-300'}`}>
+                                  {isAdminReply ? 'ADMIN' : 'YOU'}
+                                </div>
+                                <p className={`text-xs whitespace-pre-wrap break-words ${isAdminReply ? 'text-slate-200' : 'text-white'}`}>
+                                  {reply.text}
+                                </p>
+                                <div className="text-[9px] text-slate-500 mt-1">{fmtDate(reply.createdAt)}</div>
+                              </div>
+                            </div>
+                          )
+                        })}
+
+                        {/* Legacy single response display (for messages that have
+                            msg.response set but no replies array — backwards compat
+                            with old records that pre-date the ContactReply table). */}
+                        {msg.response && replies.length === 0 && (
+                          <div className="flex justify-start mb-2">
+                            <div className="bg-white/5 border border-white/10 rounded-2xl rounded-tl-sm px-3 py-2 max-w-[80%]">
+                              <div className="text-[10px] text-amber-300 font-semibold mb-0.5">ADMIN</div>
+                              <p className="text-xs text-slate-200 whitespace-pre-wrap break-words">{msg.response}</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Reply box — user can continue the conversation */}
+                        <ReplyBox
+                          placeholder="Type your reply to admin..."
+                          onSend={(text) => sendReply(msg.id, text)}
+                          disabled={sendingReply === msg.id}
+                        />
+                        {sendingReply === msg.id && (
+                          <p className="text-[10px] text-slate-500 mt-1 text-right">Sending...</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )
+                })}
               </>
             )}
           </section>
@@ -2568,31 +2802,46 @@ export default function Home() {
                 )}
               </button>
 
-              {/* Message Admin (registered only) */}
+              {/* Messages inbox — opens the user's conversation list with admin.
+                  Shows all messages + admin replies + lets user reply back.
+                  Previously this just opened the compose dialog, which meant
+                  users could send but never see the admin's response. */}
               {currentUser ? (
                 <button
-                  onClick={() => { setShowContact(true); setDrawerOpen(false) }}
-                  className="w-full flex items-center gap-3 p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all text-left"
+                  onClick={() => { setView('messages'); setDrawerOpen(false) }}
+                  className="w-full flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all text-left"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-                    <Mail className="w-5 h-5 text-emerald-400" />
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                      <Mail className="w-5 h-5 text-emerald-400" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-white">Messages</div>
+                      <div className="text-xs text-slate-400">
+                        {adminMessages.length > 0
+                          ? `${adminMessages.length} conversation${adminMessages.length === 1 ? '' : 's'} with admin`
+                          : 'Send a message to admin'}
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-sm font-semibold text-white">Message Admin</div>
-                    <div className="text-xs text-slate-400">Ask a question</div>
-                  </div>
+                  {/* Unread badge: show count of conversations where admin has replied */}
+                  {(() => {
+                    const unread = adminMessages.filter(m => m.status === 'responded').length
+                    return unread > 0 ? <Badge className="bg-red-500 text-white text-[10px]">{unread}</Badge> : null
+                  })()}
                 </button>
               ) : (
                 <button
                   onClick={() => { setShowLogin(true); setDrawerOpen(false) }}
-                  className="w-full flex items-center gap-3 p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all text-left"
+                  className="w-full flex items-center gap-3 p-3 bg-white/[0.02] border border-white/5 opacity-50 cursor-not-allowed rounded-2xl transition-all text-left"
+                  title="Log in to view messages"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-sky-500/20 flex items-center justify-center">
-                    <Users className="w-5 h-5 text-sky-400" />
+                  <div className="w-10 h-10 rounded-xl bg-slate-700/40 flex items-center justify-center">
+                    <Mail className="w-5 h-5 text-slate-500" />
                   </div>
                   <div>
-                    <div className="text-sm font-semibold text-white">Login / Register</div>
-                    <div className="text-xs text-slate-400">Save favorites & message admin</div>
+                    <div className="text-sm font-semibold text-white">Messages</div>
+                    <div className="text-xs text-slate-400">Log in to view messages</div>
                   </div>
                 </button>
               )}
@@ -3309,18 +3558,80 @@ function AdminPanel({ vehicleRequests, adminMessages, adminTeam, respondToMessag
           {adminMessages.length === 0 ? (
             <Card><CardContent className="p-8 text-center text-slate-500">No messages yet.</CardContent></Card>
           ) : (
-            adminMessages.map((msg) => (
-              <Card key={msg.id}><CardContent className="p-4">
-                <div className="flex items-start justify-between gap-2 mb-2"><div><div className="font-semibold text-sm">{msg.subject}</div><div className="text-xs text-slate-500">From: {msg.userEmail}</div></div><Badge className={msg.status === 'new' ? 'bg-red-500/20 text-red-300' : 'bg-emerald-500/20 text-emerald-300'}>{msg.status}</Badge></div>
-                <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">{msg.message}</p>
-                {msg.response ? (
-                  <div className="bg-sky-50 dark:bg-sky-950/30 p-3 rounded-2xl"><div className="text-[10px] text-sky-600 font-semibold mb-1">YOUR RESPONSE:</div><p className="text-xs">{msg.response}</p></div>
-                ) : (
-                  <ReplyBox placeholder="Type your response..." onSend={(text) => { respondToMessage(msg.id, text) }} />
-                )}
-                <div className="text-[10px] text-slate-400 mt-2">{fmtDate(msg.createdAt)}</div>
-              </CardContent></Card>
-            ))
+            adminMessages.map((msg) => {
+              const replies = Array.isArray(msg.replies) ? msg.replies : []
+              return (
+                <Card key={msg.id}>
+                  <CardContent className="p-4">
+                    {/* Conversation header */}
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold text-sm text-white">{msg.subject}</div>
+                        <div className="text-xs text-slate-500">
+                          From: {msg.userEmail}{msg.username ? ` (@${msg.username})` : ''}
+                        </div>
+                      </div>
+                      <Badge className={`shrink-0 ${msg.status === 'new' ? 'bg-red-500/20 text-red-300' : msg.status === 'responded' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-sky-500/20 text-sky-300'}`}>
+                        {msg.status}
+                      </Badge>
+                    </div>
+
+                    {/* Original user message — shown on the LEFT (admin sees user on left) */}
+                    <div className="flex justify-start mb-2">
+                      <div className="bg-sky-500/20 border border-sky-500/30 rounded-2xl rounded-tl-sm px-3 py-2 max-w-[80%]">
+                        <div className="text-[10px] text-sky-300 font-semibold mb-0.5">{msg.userEmail.split('@')[0].toUpperCase()}</div>
+                        <p className="text-xs text-white whitespace-pre-wrap break-words">{msg.message}</p>
+                        <div className="text-[9px] text-slate-500 mt-1">{fmtDate(msg.createdAt)}</div>
+                      </div>
+                    </div>
+
+                    {/* All replies in the thread, sorted chronologically.
+                        Admin replies on the RIGHT (admin's own messages),
+                        User replies on the LEFT (admin sees user on left). */}
+                    {replies.map((reply) => {
+                      const isAdminReply = reply.sender === 'admin'
+                      return (
+                        <div key={reply.id} className={`flex mb-2 ${isAdminReply ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`rounded-2xl px-3 py-2 max-w-[80%] ${
+                            isAdminReply
+                              ? 'bg-amber-500/10 border border-amber-500/30 rounded-tr-sm'
+                              : 'bg-sky-500/20 border border-sky-500/30 rounded-tl-sm'
+                          }`}>
+                            <div className={`text-[10px] font-semibold mb-0.5 ${isAdminReply ? 'text-amber-300' : 'text-sky-300'}`}>
+                              {isAdminReply ? 'YOU (ADMIN)' : msg.userEmail.split('@')[0].toUpperCase()}
+                            </div>
+                            <p className={`text-xs whitespace-pre-wrap break-words ${isAdminReply ? 'text-slate-200' : 'text-white'}`}>
+                              {reply.text}
+                            </p>
+                            <div className="text-[9px] text-slate-500 mt-1">{fmtDate(reply.createdAt)}</div>
+                          </div>
+                        </div>
+                      )
+                    })}
+
+                    {/* Legacy single response display (for messages that have
+                        msg.response set but no replies array — backwards compat
+                        with old records that pre-date the ContactReply table). */}
+                    {msg.response && replies.length === 0 && (
+                      <div className="flex justify-end mb-2">
+                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl rounded-tr-sm px-3 py-2 max-w-[80%]">
+                          <div className="text-[10px] text-amber-300 font-semibold mb-0.5">YOU (ADMIN)</div>
+                          <p className="text-xs text-slate-200 whitespace-pre-wrap break-words">{msg.response}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Reply box is ALWAYS visible — admin can continue the
+                        conversation at any time, not just on the first reply. */}
+                    <ReplyBox
+                      placeholder="Type your response..."
+                      onSend={(text) => { respondToMessage(msg.id, text) }}
+                      disabled={false}
+                    />
+                  </CardContent>
+                </Card>
+              )
+            })
           )}
         </div>
       )}
