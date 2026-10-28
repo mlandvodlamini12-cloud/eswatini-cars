@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { deleteFacebookPost } from '@/lib/facebook'
 
 // GET /api/listings/[id] — fetch single listing with full details + increment view counter
 export async function GET(
@@ -96,6 +97,11 @@ export async function PATCH(
 // DELETE /api/listings/[id] — permanently delete a listing
 // Used by the Delete button. Caller must be the owner or an admin (client-side check;
 // TODO: add server-side session check in a future auth implementation)
+//
+// If the listing was cross-posted to Facebook, we ALSO delete the FB post so
+// the page stays in sync with the marketplace (no stale "for sale" posts
+// pointing to a deleted listing). FB post deletion is best-effort: if FB
+// fails, the listing is still deleted from the DB.
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -107,6 +113,17 @@ export async function DELETE(
     const existing = await db.listing.findUnique({ where: { id } })
     if (!existing) {
       return NextResponse.json({ error: 'Listing not found' }, { status: 404 })
+    }
+
+    // If this listing was cross-posted to Facebook, delete the FB post too
+    // (best-effort — don't fail the listing deletion if FB fails).
+    if (existing.facebookPostId) {
+      const fbDeleted = await deleteFacebookPost(existing.facebookPostId)
+      if (fbDeleted) {
+        console.log(`[DELETE /api/listings/${id}] → FB post ${existing.facebookPostId} also deleted`)
+      } else {
+        console.warn(`[DELETE /api/listings/${id}] → FB post ${existing.facebookPostId} could not be deleted (will be orphaned)`)
+      }
     }
 
     // Delete the listing (cascade will also delete related enquiries + messages)

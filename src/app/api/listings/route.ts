@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { postListingToFacebook } from '@/lib/facebook'
 
 // GET /api/listings — list all active listings (with optional filters)
 export async function GET(req: NextRequest) {
@@ -58,6 +59,18 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/listings — create a new listing
+//
+// After creating the listing in the DB, we ALSO attempt to cross-post it to
+// the configured Facebook Page (if FACEBOOK_PAGE_ID + FACEBOOK_PAGE_ACCESS_TOKEN
+// env vars are set). The FB post is best-effort:
+//   - If FB is not configured, we skip silently (listing still saves).
+//   - If FB returns an error, we log it but the listing still saves.
+//   - If FB succeeds, we store the FB post ID in `listing.facebookPostId`
+//     so we can later delete the FB post when the listing is deleted.
+//
+// This async "fire and persist" pattern means the user gets the listing
+// confirmation immediately — the FB post happens in the background and
+// never blocks the user.
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
@@ -90,8 +103,55 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    // Cross-post to Facebook (best-effort, never throws).
+    // We do this AFTER the DB write so the listing is already saved —
+    // even if FB takes a few seconds or fails, the listing is in the DB.
+    const fbResult = await postListingToFacebook({
+      listingId: listing.id,
+      type: listing.type,
+      make: listing.make,
+      model: listing.model,
+      year: listing.year,
+      price: listing.price,
+      currency: listing.currency,
+      fuelType: listing.fuelType,
+      transmission: listing.transmission,
+      mileage: listing.mileage,
+      color: listing.color,
+      region: listing.region,
+      description: listing.description,
+      imageUrl: listing.imageUrl,
+    })
+
+    // If the FB post succeeded, store the FB post ID so we can later delete
+    // the FB post when the listing is deleted (keeps the page in sync).
+    if (fbResult.success && fbResult.postId) {
+      try {
+        await db.listing.update({
+          where: { id: listing.id },
+          data: { facebookPostId: fbResult.postId },
+        })
+        console.log(`[api/listings] POST → listing ${listing.id} created + cross-posted to Facebook (post: ${fbResult.postId})`)
+      } catch (updateErr) {
+        // Listing is saved + FB post exists; just couldn't update the FK.
+        // Log and continue — not worth failing the response over.
+        console.error('[api/listings] POST → FB post succeeded but failed to update listing.facebookPostId:', updateErr)
+      }
+    } else if (!fbResult.success) {
+      // Log the FB error but DON'T fail the listing creation.
+      // The listing is the primary record; the FB post is a "bonus".
+      console.warn(`[api/listings] POST → listing ${listing.id} created, but FB post failed: ${fbResult.error}`)
+    }
+
     const { sellerPhone, ...safe } = listing
-    return NextResponse.json({ listing: safe })
+    return NextResponse.json({
+      listing: safe,
+      facebook: {
+        posted: fbResult.success,
+        postId: fbResult.postId || null,
+        error: fbResult.error || null,
+      },
+    })
   } catch (err: any) {
     console.error('[api/listings] POST error:', err)
     return NextResponse.json(

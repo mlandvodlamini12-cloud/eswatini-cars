@@ -14,29 +14,36 @@ datasource db {
 }
 
 model Listing {
-  id           String      @id @default(cuid())
-  type         String
-  make         String
-  model        String
-  year         Int
-  price        Float
-  currency     String      @default("SZL")
-  fuelType     String
-  transmission String
-  mileage      Int         @default(0)
-  color        String?
-  description  String
-  imageUrl     String?
-  region       String
-  sellerName   String
-  sellerPhone  String
-  sellerEmail  String?
-  status       String      @default("active")
-  featured     Boolean     @default(false)
-  views        Int         @default(0)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-  enquiries    Enquiry[]
+  id              String      @id @default(cuid())
+  type            String
+  make            String
+  model           String
+  year            Int
+  price           Float
+  currency        String      @default("SZL")
+  fuelType        String
+  transmission    String
+  mileage         Int         @default(0)
+  color           String?
+  description     String
+  imageUrl        String?
+  region          String
+  sellerName      String
+  sellerPhone     String
+  sellerEmail     String?
+  status          String      @default("active")
+  featured        Boolean     @default(false)
+  views           Int         @default(0)
+  // Facebook auto-post tracking. When a listing is created, we attempt to
+  // cross-post it to the Eswatini Cars Facebook Page. If the post succeeds,
+  // we store the FB post ID here so we can later delete the FB post when the
+  // listing is deleted (keeping the page in sync with the marketplace).
+  // Null = not posted (FB not configured, post failed, or listing created
+  // before this feature was added).
+  facebookPostId   String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  enquiries       Enquiry[]
 }
 
 model Enquiry {
