@@ -1190,3 +1190,75 @@ Stage Summary:
 - ✅ GRACEFUL DEGRADATION: works without FB credentials (silently skips)
 - PENDING: user needs to set FACEBOOK_PAGE_ID + FACEBOOK_PAGE_ACCESS_TOKEN env vars on Vercel
 - Once env vars are set, every new listing auto-posts to FB immediately
+
+---
+Task ID: facebook-auto-post-verify-1
+Agent: main
+Task: Complete the Facebook auto-post integration — get the proper Page Access Token with pages_manage_posts permission, set it on Vercel, and verify end-to-end.
+
+Work Log:
+- User went through the Facebook developer setup on mobile (very painful on mobile)
+- Initial token was a Page Access Token but only had 3 scopes (missing pages_manage_posts)
+- Walked user through adding the "Manage everything on your Page" use case
+- User then added pages_manage_posts permission via the use case customization UI
+- User generated a User Token with all 4 scopes:
+  * pages_show_list
+  * pages_read_engagement
+  * pages_manage_posts (NEW — the missing permission)
+  * public_profile
+  * Expires: 0 (long-lived — actually a 60-day token that needs renewal)
+- User then converted to Page Access Token via the Graph API Explorer's "User or Page" dropdown
+- Final Page Access Token scopes: ['pages_show_list', 'pages_read_engagement', 'pages_manage_posts', 'public_profile']
+
+Token verification:
+- Token type: PAGE ✓
+- Is valid: true ✓
+- Scopes include pages_manage_posts ✓
+- Expires: 0 (long-lived) ✓
+
+Vercel env var update:
+- Deleted old FACEBOOK_PAGE_ACCESS_TOKEN env var (id: NxGj9RfARunyRte2)
+- Set new FACEBOOK_PAGE_ACCESS_TOKEN env var (id: tg3lIif72wynzSuX)
+- Encrypted, applied to all environments (production, preview, development)
+
+Deploy:
+- Triggered fresh production deploy
+- URL: https://eswatini-cars-bpegrmejo-eswatini-cars.vercel.app → aliased to https://eswatini-cars.vercel.app
+
+End-to-end verification:
+1. Created a test listing via POST /api/listings with a working image URL
+2. Response included:
+   "facebook": {
+     "posted": true,
+     "postId": "1310762735464552_122098467105531855",
+     "error": null
+   }
+3. Verified the FB post is live via GET /v21.0/{post_id}:
+   - message: "🚗 2021 Ford Ranger FB Auto-Post Success Test\nE 425 000 · Diesel · Automatic · 30 000 km · Black · Manzini\n\nPowerful Ford Ranger...\n\n📍 View full details + enquire: https://eswatini-cars.vercel.app\n📞 +268 76295648 (broker-supervised viewings)\n🛡️ Eswatini Cars — Managed Vehicle Marketplace"
+   - created_time: 2026-10-29T14:25:38+0000
+   - permalink_url: https://www.facebook.com/122098467201531855/posts/122098467105531855
+
+Cleanup:
+- Deleted all test listings from Turso DB (5 listings)
+- Deleted all test FB posts from the Facebook Page (2 posts)
+- Page is clean, ready for real listings
+
+Important findings:
+1. The /api/upload endpoint works (already in production)
+2. The facebookPostId field is now properly stored in the Listing table
+3. When a listing has an image URL that returns 404 (deleted Cloudinary image), FB returns "Missing or invalid image file" — this is expected and the listing still saves to the DB
+4. When a listing has a valid image URL, FB accepts it and creates the post within ~1 second
+5. The DELETE /api/listings/[id] route properly calls deleteFacebookPost to remove the corresponding FB post (sync)
+
+Stage Summary:
+- ✅ FACEBOOK AUTO-POST IS FULLY WORKING
+- ✅ Every new listing will now automatically cross-post to the Eswatini Cars Facebook Page
+- ✅ The post includes: car photo(s), make/model, year, price, fuel, transmission, mileage, color, region, description, contact info, link back to the marketplace
+- ✅ When a listing is deleted, the FB post is also deleted (auto-sync)
+- ✅ Token never expires (expires_at=0) — but practically needs renewal every ~60 days when Facebook rotates it
+- ✅ All test data cleaned up — page is ready for real listings
+
+What the user needs to do:
+- Post a real listing from their app to see it auto-appear on Facebook
+- If they want to test: open the app, tap "Sell", fill in car details + upload a photo, tap "Post listing"
+- Within ~2 seconds, the listing appears on their Facebook Page
