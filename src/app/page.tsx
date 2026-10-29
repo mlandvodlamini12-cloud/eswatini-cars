@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
-import { Car, Truck, Bike, Wrench, Search, Plus, Shield, Eye, Phone, MapPin, Fuel, Settings2, Gauge, TrendingUp, Handshake, CheckCircle2, Heart, MessageSquare, LayoutDashboard, Lock, X, Upload, Star, Clock, DollarSign, Send, ArrowLeft, Bus, Sparkles, Zap, ShieldCheck, Award, Trash2, Pencil, UserPlus, UserMinus, Bell, Mail, Users, LogOut, UserCog, Caravan, Tractor, FileText, Ban, Megaphone, History, TrendingDown } from 'lucide-react'
+import { Car, Truck, Bike, Wrench, Search, Plus, Shield, Eye, Phone, MapPin, Fuel, Settings2, Gauge, TrendingUp, Handshake, CheckCircle2, Heart, MessageSquare, LayoutDashboard, Lock, X, Upload, Star, Clock, DollarSign, Send, ArrowLeft, Bus, Sparkles, Zap, ShieldCheck, Award, Trash2, Pencil, UserPlus, UserMinus, Bell, Mail, Users, LogOut, UserCog, Caravan, Tractor, FileText, Ban, Megaphone, History, TrendingDown, ChevronUp, ChevronDown } from 'lucide-react'
 
 type Listing = {
   id: string
@@ -516,6 +516,10 @@ export default function Home() {
   // === BROADCASTS (admin announcements banner) ===
   const [broadcasts, setBroadcasts] = useState<Array<{ id: string; title: string; message: string; audience: string; createdAt: string; read?: boolean }>>([])
   const [activeBroadcast, setActiveBroadcast] = useState<{ id: string; title: string; message: string; audience: string; createdAt: string; read?: boolean } | null>(null)
+  // Tracks whether the broadcast banner is currently expanded (full text visible)
+  // or collapsed (single-line summary). User taps the banner to toggle.
+  // Collapsed by default so it doesn't push the page content down.
+  const [broadcastExpanded, setBroadcastExpanded] = useState(false)
   const [dismissedBroadcasts, setDismissedBroadcasts] = useState<string[]>(() => {
     if (typeof window === 'undefined') return []
     try {
@@ -807,13 +811,22 @@ export default function Home() {
   }, [])
 
   // Pick the most recent unread + un-dismissed broadcast to surface as the banner.
+  // When the active broadcast changes (e.g. admin posts a new announcement),
+  // reset the expanded state to false so the new banner starts collapsed.
   useEffect(() => {
     if (broadcasts.length === 0) {
       setActiveBroadcast(null)
+      setBroadcastExpanded(false)
       return
     }
     const next = broadcasts.find(b => !b.read && !dismissedBroadcasts.includes(b.id))
-    setActiveBroadcast(next || null)
+    setActiveBroadcast(prev => {
+      // If the broadcast ID changed, reset the expanded state.
+      if (prev?.id !== next?.id) {
+        setBroadcastExpanded(false)
+      }
+      return next || null
+    })
   }, [broadcasts, dismissedBroadcasts])
 
   // Initial broadcasts fetch — runs once on mount.
@@ -1628,21 +1641,68 @@ export default function Home() {
         }}
       />
 
-      {/* BROADCAST BANNER — top-priority admin announcements */}
+      {/* BROADCAST BANNER — top-priority admin announcements.
+          Tappable to expand/collapse so long messages don't get cut off.
+
+          - Collapsed (default): shows title + first line of message + chevron icon
+            (chevron-down = "tap to read more")
+          - Expanded (after tap): shows the full message, chevron-up = "tap to collapse"
+
+          The whole banner (except the X dismiss button) is the tap target,
+          so users don't have to aim for a small button — they just tap the
+          announcement anywhere. The X button still works for dismissing
+          (separate tap target). */}
       {activeBroadcast && (
-        <div className="bg-gradient-to-r from-amber-500/90 via-amber-500 to-amber-400/90 text-slate-900 text-sm px-4 py-2.5 flex items-center gap-3 border-b border-amber-600/40 shadow-md z-40">
-          <Megaphone className="w-5 h-5 flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <div className="font-bold text-xs uppercase tracking-wide truncate">{activeBroadcast.title}</div>
-            <div className="text-[12px] line-clamp-1 opacity-90">{activeBroadcast.message}</div>
+        <div
+          className="bg-gradient-to-r from-amber-500/90 via-amber-500 to-amber-400/90 text-slate-900 text-sm border-b border-amber-600/40 shadow-md z-40"
+        >
+          <div className="px-4 py-2.5 flex items-center gap-3">
+            <Megaphone className="w-5 h-5 flex-shrink-0" />
+            {/* Tap target: tap anywhere on the title/message area to expand/collapse */}
+            <button
+              type="button"
+              onClick={() => setBroadcastExpanded(prev => !prev)}
+              className="flex-1 min-w-0 text-left cursor-pointer hover:opacity-90 transition-opacity"
+              aria-expanded={broadcastExpanded}
+              aria-label={broadcastExpanded ? 'Collapse announcement' : 'Expand announcement to read more'}
+            >
+              <div className="font-bold text-xs uppercase tracking-wide truncate">{activeBroadcast.title}</div>
+              {broadcastExpanded ? (
+                // Expanded: show the FULL message, no clamp. Whitespace-pre-wrap
+                // preserves line breaks the admin typed. break-words prevents
+                // long URLs from overflowing horizontally on mobile.
+                <div className="text-[12px] opacity-95 mt-0.5 whitespace-pre-wrap break-words">{activeBroadcast.message}</div>
+              ) : (
+                // Collapsed: show only the first line. The chevron hint below
+                // tells the user there's more to read.
+                <div className="text-[12px] opacity-90 truncate">{activeBroadcast.message}</div>
+              )}
+              {/* Tap hint: shows "Tap to read more ▾" when collapsed,
+                  "Tap to collapse ▴" when expanded. Tiny text so it
+                  doesn't dominate the banner but is still discoverable. */}
+              <div className="text-[10px] opacity-70 mt-1 flex items-center gap-1 font-semibold">
+                {broadcastExpanded ? (
+                  <>
+                    <ChevronUp className="w-3 h-3" />
+                    <span>Tap to collapse</span>
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="w-3 h-3" />
+                    <span>Tap to read more</span>
+                  </>
+                )}
+              </div>
+            </button>
+            {/* Dismiss button (separate tap target — doesn't toggle expand) */}
+            <button
+              onClick={() => dismissBroadcast(activeBroadcast.id)}
+              className="bg-black/20 hover:bg-black/40 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 transition-colors"
+              aria-label="Dismiss announcement"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
-          <button
-            onClick={() => dismissBroadcast(activeBroadcast.id)}
-            className="bg-black/20 hover:bg-black/40 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 transition-colors"
-            aria-label="Dismiss announcement"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
         </div>
       )}
 
