@@ -1462,3 +1462,66 @@ What user needs to do for phone OTP to actually work:
 4. After upgrade, phone OTP will work end-to-end
 
 Without upgrading to Blaze, the "Skip phone verification" button is the only way to register. Phone OTP will continue to fail with the friendly error until Blaze is enabled.
+
+---
+Task ID: username-visibility-fix-1
+Agent: main
+Task: Show the auto-generated username to the user after registration + display it in Profile Settings.
+
+Work Log:
+User reported: "After skipping phone registration and leaving the username space blank then clicking create account, there's an immediate sign in to the app without user having seen what the auto username was or is, even when user goes to profile settings there is no username there only real names."
+
+Root cause:
+1. The User type in page.tsx had no 'username' field, so even though the API returned it, the client never stored it
+2. submitRegister, submitLogin, and the /api/auth/me loader all created User objects without including username
+3. The profile dialog had no username field
+4. After registration with auto-generated username, the user was logged in immediately without seeing what their username was
+
+Fixes (commit ccd0644):
+
+1. Added 'username?: string' to the User type in page.tsx
+
+2. submitRegister now captures data.user.username from the API response and stores it in the User object that gets saved to localStorage
+
+3. submitLogin now captures data.user.username from the API response
+
+4. The /api/auth/me loader (runs on every page mount) now captures data.user.username so the username persists across page reloads (localStorage snapshot is updated with the server's username)
+
+5. After successful registration with an AUTO-GENERATED username (i.e., the user left the username field blank), show a non-blocking alert:
+   "✅ Account created!
+    Your username is: @mhlonishwadlamini
+    This was auto-generated from your email. You can use it to identify yourself when messaging admin. You can also see it anytime in Profile Settings."
+   The setTimeout(100ms) ensures the dialog closes first, then the alert appears — so the user sees a clean transition.
+
+6. Added a read-only Username field to the profile dialog (top of the form, before Name/Email/Phone):
+   - Shows '@username' if set, '(not set)' if not
+   - Greyed-out styling (bg-slate-50, cursor-not-allowed)
+   - Helper text: "Your username identifies you in messages to admin. It cannot be changed."
+   - Read-only because username is referenced by existing messages in the DB (changing it would orphan those references)
+
+7. Bumped sw.js CACHE_NAME v15 → v16
+
+Deploy:
+- Commit ccd0644: feat(profile): show username in profile settings + alert after registration
+- Deploy URL: https://eswatini-cars-ax1vg8ows-eswatini-cars.vercel.app → aliased to https://eswatini-cars.vercel.app
+
+Verification (agent-browser against live site):
+1. ✅ Registered with email "test.username.1793318331@example.com" (left username blank)
+2. ✅ Clicked "Skip phone verification" → account created successfully
+3. ✅ Opened Profile Settings → username field shows "@testusername17933183" (auto-generated from email prefix, sanitized to alphanumeric)
+4. ✅ Verified the post-registration alert popup content by overriding window.alert:
+   "✅ Account created!
+    Your username is: @alerttest17933183690
+    This was auto-generated from your email. You can use it to identify yourself when messaging admin. You can also see it anytime in Profile Settings."
+
+Stage Summary:
+- ✅ USERNAME NOW VISIBLE TO USER after registration (alert popup)
+- ✅ USERNAME NOW VISIBLE in Profile Settings (read-only field at the top)
+- ✅ USERNAME PERSISTS across page reloads (captured from /api/auth/me on every mount)
+- ✅ DEPLOY COMPLETE: https://eswatini-cars.vercel.app (commit ccd0644)
+- ✅ NO REGRESSIONS: existing features untouched
+
+Note: Username is read-only (cannot be changed) because:
+1. It's referenced by existing messages in the DB (changing it would orphan those references)
+2. It's the user's identity in admin's Messages dashboard
+3. Auto-generated usernames are derived from email prefix, so they're stable and predictable
