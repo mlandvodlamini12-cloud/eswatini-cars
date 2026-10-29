@@ -122,7 +122,7 @@ export async function sendPhoneOTP(phoneNumber: string): Promise<{ confirmationR
     // Map common Firebase phone-auth error codes to user-friendly messages.
     const friendlyErrors: Record<string, string> = {
       'auth/argument-error': 'Invalid phone number format. Please enter your full phone number including country code (e.g. +268 7629 5648).',
-      'auth/operation-not-allowed': 'Phone authentication is not enabled in the Firebase Console. Please contact the admin.',
+      'auth/operation-not-allowed': 'Phone authentication requires the Firebase Blaze (pay-as-you-go) plan. Even though Phone Auth is enabled in the Firebase Console, the free Spark plan blocks actual SMS sending. The admin needs to upgrade to Blaze (still free for the first 10 SMS/day — you only pay if you exceed).',
       'auth/quota-exceeded': 'Daily SMS quota exceeded (10/day on free plan). Please try again tomorrow or contact admin to upgrade.',
       'auth/invalid-phone-number': 'The phone number is invalid. Please check the format (e.g. +268 7629 5648).',
       'auth/too-many-requests': 'Too many OTP requests. Please wait a few minutes before trying again.',

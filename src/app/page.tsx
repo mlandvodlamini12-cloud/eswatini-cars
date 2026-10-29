@@ -1136,7 +1136,7 @@ export default function Home() {
   const startEdit = (listing: Listing) => editListing(listing)
 
   // Register new user
-  const [registerForm, setRegisterForm] = useState({ name: '', email: '', phone: '', password: '' })
+  const [registerForm, setRegisterForm] = useState({ name: '', email: '', phone: '', password: '', username: '' })
   const submitRegister = async () => {
     if (!registerForm.email || !registerForm.name) return
     // If we're in the OTP step, verify the code first.
@@ -1149,6 +1149,21 @@ export default function Home() {
       }
     }
     try {
+      // Auto-generate a username from the email prefix if the user didn't
+      // type one. This is the most common case — most users don't bother
+      // choosing a separate username. The username must be 3-20 chars,
+      // alphanumeric + underscores only, so we sanitize the email prefix.
+      let username = registerForm.username.trim()
+      if (!username) {
+        const emailPrefix = registerForm.email.split('@')[0]
+        // Sanitize: keep only letters, numbers, underscores. Truncate to 20 chars.
+        username = emailPrefix.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase().slice(0, 20)
+        // If the sanitized prefix is too short (< 3 chars), pad with random digits
+        // so it meets the API's 3-char minimum requirement.
+        if (username.length < 3) {
+          username = (username + 'user' + Math.floor(Math.random() * 1000)).slice(0, 20)
+        }
+      }
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1158,6 +1173,8 @@ export default function Home() {
           email: registerForm.email,
           phone: registerForm.phone,
           password: registerForm.password,
+          username,
+          phoneVerified: phoneVerifyStep === 'done',
         }),
       })
       if (!res.ok) {
@@ -1175,7 +1192,7 @@ export default function Home() {
       setCurrentUser(newUser)
       localStorage.setItem('ec_user', JSON.stringify(newUser))
       setShowRegister(false)
-      setRegisterForm({ name: '', email: '', phone: '', password: '' })
+      setRegisterForm({ name: '', email: '', phone: '', password: '', username: '' })
       setPhoneVerifyStep('form')
       setOtpCode('')
       setConfirmationResult(null)
@@ -3256,6 +3273,11 @@ export default function Home() {
           ) : (
             <div className="space-y-3">
               <div><Label>Name *</Label><Input value={registerForm.name} onChange={e => setRegisterForm({...registerForm, name: e.target.value})} placeholder="John Dlamini" /></div>
+              <div>
+                <Label>Username <span className="text-slate-500 font-normal">(optional)</span></Label>
+                <Input value={registerForm.username} onChange={e => setRegisterForm({...registerForm, username: e.target.value.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase().slice(0, 20)})} placeholder="Auto-generated from email if blank" />
+                <p className="text-[10px] text-slate-500 mt-1">3-20 chars: letters, numbers, underscores. Used to identify you in messages to admin.</p>
+              </div>
               <div><Label>Email *</Label><Input type="email" value={registerForm.email} onChange={e => setRegisterForm({...registerForm, email: e.target.value})} placeholder="john@email.com" /></div>
               <div><Label>Password * (min 8 characters)</Label><Input type="password" value={registerForm.password} onChange={e => setRegisterForm({...registerForm, password: e.target.value})} placeholder="••••••••" minLength={8} /></div>
               <div><Label>Phone *</Label><Input value={registerForm.phone} onChange={e => setRegisterForm({...registerForm, phone: e.target.value})} placeholder="+268 7XXX XXXX" /></div>
