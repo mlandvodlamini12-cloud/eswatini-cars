@@ -32,16 +32,107 @@ export interface PhoneVerificationResult {
   error?: string
 }
 
+/**
+ * Normalize a phone number to E.164 format (e.g. +26876295648).
+ *
+ * Firebase Phone Auth requires the phone number to be in strict E.164 format:
+ *   - Starts with +
+ *   - Country code
+ *   - Subscriber number
+ *   - NO spaces, dashes, parentheses, or other separators
+ *
+ * Eswatini numbers are +268 followed by 8 digits (e.g. +268 7629 5648 → +26876295648).
+ * This function strips all non-digit characters and ensures the + prefix is present.
+ *
+ * If the user typed "7629 5648" (no country code), we assume Eswatini (+268) and
+ * prepend it. If they typed "+268 7629 5648" we just strip the spaces.
+ */
+function normalizePhoneNumber(phone: string): string {
+  if (!phone || typeof phone !== 'string') return ''
+  let cleaned = phone.trim()
+  // Strip all whitespace, dashes, parentheses, dots
+  cleaned = cleaned.replace(/[\s\-().]/g, '')
+  // If it doesn't start with +, prepend the Eswatini country code
+  if (!cleaned.startsWith('+')) {
+    if (cleaned.startsWith('268')) {
+      cleaned = '+' + cleaned
+    } else if (cleaned.startsWith('00')) {
+      // Some users type 00268... instead of +268...
+      cleaned = '+' + cleaned.slice(2)
+    } else if (cleaned.length === 8) {
+      // Bare Eswatini number like 76295648 → +26876295648
+      cleaned = '+268' + cleaned
+    } else if (cleaned.startsWith('0')) {
+      // Local format like 0762956488 → strip leading 0, add +268
+      cleaned = '+268' + cleaned.slice(1)
+    } else {
+      cleaned = '+' + cleaned
+    }
+  }
+  return cleaned
+}
+
+/**
+ * Send an OTP to the user's phone via Firebase phone auth.
+ *
+ * Uses an invisible reCAPTCHA to verify the request is from a real user (not a bot).
+ * The reCAPTCHA renders inside the #recaptcha-container div (which must exist in the DOM).
+ *
+ * @param phoneNumber - Phone number in any reasonable format (e.g. "+268 7629 5648", "76295648", "0762956488")
+ * @returns { confirmationResult } on success, or { error } on failure
+ */
 export async function sendPhoneOTP(phoneNumber: string): Promise<{ confirmationResult: any } | { error: string }> {
   try {
+    // Normalize the phone number to E.164 format before sending to Firebase.
+    // Without this, Firebase throws "auth/argument-error" if the number has
+    // spaces, dashes, or is missing the country code.
+    const normalizedPhone = normalizePhoneNumber(phoneNumber)
+    if (!normalizedPhone || normalizedPhone.length < 6) {
+      return { error: 'Please enter a valid phone number (e.g. +268 7629 5648)' }
+    }
+
     const auth = await getFirebaseAuth()
     if (!auth) return { error: 'Firebase not initialized' }
     const { RecaptchaVerifier, signInWithPhoneNumber } = await import('firebase/auth')
-    const recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' })
-    const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier)
+
+    // Create an invisible reCAPTCHA verifier. Firebase uses this to confirm
+    // the request is from a real user, not a bot trying to spam SMS.
+    // The 'recaptcha-container' div must exist in the DOM (it's rendered in the
+    // register dialog).
+    const recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+      size: 'invisible',
+      // 'callback' fires when reCAPTCHA verification succeeds — we don't need
+      // to do anything here because signInWithPhoneNumber will proceed
+      // automatically once verification passes.
+      callback: () => {},
+      // 'error-callback' fires if reCAPTCHA itself fails (rare).
+      'error-callback': () => {},
+    })
+
+    const confirmationResult = await signInWithPhoneNumber(auth, normalizedPhone, recaptchaVerifier)
     return { confirmationResult }
   } catch (err: any) {
-    return { error: err?.message || 'Failed to send OTP' }
+    // Extract the most useful error message from Firebase's error object.
+    // Firebase errors often have err.code (e.g. "auth/argument-error"),
+    // err.message (a long string), and sometimes err.customData.message.
+    // We want the shortest human-readable message.
+    const errorCode = err?.code || ''
+    const errorMessage = err?.message || String(err) || 'Failed to send OTP'
+
+    // Map common Firebase phone-auth error codes to user-friendly messages.
+    const friendlyErrors: Record<string, string> = {
+      'auth/argument-error': 'Invalid phone number format. Please enter your full phone number including country code (e.g. +268 7629 5648).',
+      'auth/operation-not-allowed': 'Phone authentication is not enabled in the Firebase Console. Please contact the admin.',
+      'auth/quota-exceeded': 'Daily SMS quota exceeded (10/day on free plan). Please try again tomorrow or contact admin to upgrade.',
+      'auth/invalid-phone-number': 'The phone number is invalid. Please check the format (e.g. +268 7629 5648).',
+      'auth/too-many-requests': 'Too many OTP requests. Please wait a few minutes before trying again.',
+      'auth/captcha-check-failed': 'reCAPTCHA verification failed. Please refresh the page and try again.',
+      'auth/network-request-failed': 'Network error. Please check your internet connection and try again.',
+      'auth/app-not-authorized': 'This app is not authorized to use Firebase Authentication. Please verify the Firebase config in the console.',
+    }
+
+    const friendlyMessage = friendlyErrors[errorCode] || errorMessage
+    return { error: friendlyMessage }
   }
 }
 
@@ -50,6 +141,12 @@ export async function verifyPhoneOTP(confirmationResult: any, code: string): Pro
     await confirmationResult.confirm(code)
     return { verified: true }
   } catch (err: any) {
-    return { verified: false, error: err?.message || 'Invalid code' }
+    const errorCode = err?.code || ''
+    const friendlyErrors: Record<string, string> = {
+      'auth/invalid-verification-code': 'Wrong code. Please check the 6-digit code we sent to your phone and try again.',
+      'auth/code-expired': 'The verification code has expired. Please request a new code.',
+      'auth/missing-verification-code': 'Please enter the 6-digit code we sent to your phone.',
+    }
+    return { verified: false, error: friendlyErrors[errorCode] || err?.message || 'Invalid code' }
   }
 }

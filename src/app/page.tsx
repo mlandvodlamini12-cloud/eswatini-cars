@@ -769,20 +769,23 @@ export default function Home() {
       const { sendPhoneOTP } = await import('@/lib/firebase')
       const result = await sendPhoneOTP(phone)
       if ('error' in result) {
-        // Firebase failed — use mock mode so registration isn't blocked
+        // Firebase failed — surface the friendly error message to the user.
+        // We no longer silently fall back to dev mode in production because
+        // that masks real configuration issues (e.g. quota exceeded, phone auth
+        // not enabled, invalid phone format). The user needs to see the actual
+        // error so they can fix it or contact admin.
         console.warn('[sendOTP] Firebase error:', result.error)
-        setConfirmationResult({ _mock: true, _phone: phone })
-        setPhoneVerifyStep('otp')
-        alert('Could not send SMS via Firebase. Using dev mode: OTP is 123456')
+        // Show the error in an alert so the user sees it (mobile-friendly).
+        // The error message from firebase.ts is already user-friendly.
+        alert(`Could not send OTP: ${result.error}`)
       } else {
         setConfirmationResult(result.confirmationResult)
         setPhoneVerifyStep('otp')
       }
     } catch (err: any) {
-      console.warn('[sendOTP] failed, using mock:', err)
-      setConfirmationResult({ _mock: true, _phone: phone })
-      setPhoneVerifyStep('otp')
-      alert('Dev mode: OTP is 123456')
+      console.warn('[sendOTP] failed:', err)
+      const errMsg = err?.message || 'Unknown error. Please try again.'
+      alert(`Could not send OTP: ${errMsg}`)
     }
   }, [])
 
@@ -3243,7 +3246,7 @@ export default function Home() {
                   placeholder="123456"
                   className="text-center text-2xl tracking-[0.5em] font-mono"
                 />
-                <p className="text-[10px] text-slate-500 mt-1">Dev mode: use <b>123456</b>. Real Firebase OTP will be sent in production.</p>
+                <p className="text-[10px] text-slate-500 mt-1">Enter the 6-digit code from the SMS we sent you. The code expires in 2 minutes.</p>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => { setPhoneVerifyStep('form'); setOtpCode(''); setConfirmationResult(null) }}>Back</Button>
@@ -3275,6 +3278,11 @@ export default function Home() {
                 <Button variant="ghost" className="w-full text-xs text-slate-500" onClick={submitRegister}>Skip phone verification →</Button>
               </DialogFooter>
               <p className="text-[10px] text-slate-500 text-center">⚠️ Phone OTP via Firebase. Email verification requires a cloud email service.</p>
+              {/* Invisible reCAPTCHA container — Firebase Phone Auth needs this div
+                  to exist in the DOM so it can render the reCAPTCHA challenge.
+                  The div is empty and invisible (no visible UI), but Firebase
+                  will inject its own iframe inside it during the OTP send. */}
+              <div id="recaptcha-container" className="recaptcha-container" aria-hidden="true" />
             </div>
           )}
         </DialogContent>
