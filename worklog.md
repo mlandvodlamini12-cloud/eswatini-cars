@@ -1398,3 +1398,67 @@ Stage Summary:
 - ✅ NO REGRESSIONS: existing features untouched
 - User should hard-reload the app + test registration from their actual phone (not a browser)
 - If reCAPTCHA Enterprise is desired (no visible challenge ever), user can upgrade Firebase to Blaze plan + enable reCAPTCHA Enterprise in Firebase Console
+
+---
+Task ID: register-username-blaze-fix-1
+Agent: main
+Task: Fix 2 registration errors: missing username + Phone auth requires Blaze plan.
+
+Work Log:
+User reported 2 errors:
+1. Send OTP → "Could not send OTP: Phone authentication is not enabled in the Firebase Console."
+2. Skip phone verification → "Registration failed: Username is required. Please try again."
+
+Root causes:
+1. Phone Auth IS enabled in Firebase Console (toggle says "Enabled"), BUT the project is on the free Spark plan. Firebase Phone Auth requires the Blaze (pay-as-you-go) plan to actually send SMS. Even with the toggle ON, Spark blocks SMS delivery and returns auth/operation-not-allowed.
+
+2. The register form had no username field, and submitRegister didn't auto-generate one. The /api/auth/register route requires 'username' (3-20 chars, alphanumeric + underscores), so every registration returned "Username is required".
+
+Fixes (commit c319c67):
+
+1. submitRegister now auto-generates a username from the email prefix if the user didn't type one:
+   - Takes the part before @ in the email
+   - Strips non-alphanumeric chars (keeps a-z, 0-9, _)
+   - Lowercases + truncates to 20 chars
+   - Pads with 'user' + random digits if too short (< 3 chars)
+   Example: 'mhlonishwa.dlamini@gmail.com' → username 'mhlonishwadlamini'
+
+2. Added optional username field to the register dialog:
+   - Label: "Username (optional)"
+   - Placeholder: "Auto-generated from email if blank"
+   - Real-time sanitization: strips invalid chars as user types
+   - Helper text: "3-20 chars: letters, numbers, underscores. Used to identify you in messages to admin."
+
+3. submitRegister now sends 'username' + 'phoneVerified' to the API.
+
+4. Updated the friendly error for auth/operation-not-allowed to explain the Blaze plan requirement clearly:
+   "Phone authentication requires the Firebase Blaze (pay-as-you-go) plan. Even though Phone Auth is enabled in the Firebase Console, the free Spark plan blocks actual SMS sending. The admin needs to upgrade to Blaze (still free for the first 10 SMS/day — you only pay if you exceed)."
+
+5. Bumped sw.js CACHE_NAME v14 → v15.
+
+Deploy:
+- Commit c319c67: fix(register): auto-generate username + clearer Blaze plan error
+- Deploy URL: https://eswatini-cars-ampcigxaw-eswatini-cars.vercel.app → aliased to https://eswatini-cars.vercel.app
+
+Verification:
+1. ✅ Tested via curl: explicit username works (user created successfully)
+2. ✅ Tested via curl: missing username still fails (server-side validation intact)
+3. ✅ Tested via agent-browser (real browser, no username typed):
+   - Filled register form with name + email + password + phone
+   - Left username blank
+   - Clicked "Skip phone verification"
+   - Result: "SUCCESS: Account created!" (auto-generated username worked)
+
+Stage Summary:
+- ✅ "Skip phone verification" now works (auto-generates username from email)
+- ✅ Friendly error for phone auth clearly explains the Blaze plan requirement
+- ✅ DEPLOY COMPLETE: https://eswatini-cars.vercel.app (commit c319c67)
+- ✅ NO REGRESSIONS: existing features untouched
+
+What user needs to do for phone OTP to actually work:
+1. Go to Firebase Console → Build → Authentication → Sign-in method → Phone
+2. If prompted, upgrade to Blaze (pay-as-you-go) plan
+3. Link a credit card (won't be charged unless >10 SMS/day)
+4. After upgrade, phone OTP will work end-to-end
+
+Without upgrading to Blaze, the "Skip phone verification" button is the only way to register. Phone OTP will continue to fail with the friendly error until Blaze is enabled.
