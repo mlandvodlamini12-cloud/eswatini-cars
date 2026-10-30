@@ -2358,7 +2358,7 @@ export default function Home() {
                         <div className="flex justify-end mb-2">
                           <div className="bg-sky-500/20 border border-sky-500/30 rounded-2xl rounded-tr-sm px-3 py-2 max-w-[80%]">
                             <div className="text-[10px] text-sky-300 font-semibold mb-0.5">YOU</div>
-                            <p className="text-xs text-white whitespace-pre-wrap break-words">{msg.message}</p>
+                            <p className="text-xs text-slate-900 whitespace-pre-wrap break-words">{msg.message}</p>
                           </div>
                         </div>
 
@@ -2375,7 +2375,7 @@ export default function Home() {
                                 <div className={`text-[10px] font-semibold mb-0.5 ${isAdminReply ? 'text-amber-300' : 'text-sky-300'}`}>
                                   {isAdminReply ? 'ADMIN' : 'YOU'}
                                 </div>
-                                <p className={`text-xs whitespace-pre-wrap break-words ${isAdminReply ? 'text-slate-200' : 'text-white'}`}>
+                                <p className={`text-xs whitespace-pre-wrap break-words text-slate-900`}>
                                   {reply.text}
                                 </p>
                                 <div className="text-[9px] text-slate-500 mt-1">{fmtDate(reply.createdAt)}</div>
@@ -2391,7 +2391,7 @@ export default function Home() {
                           <div className="flex justify-start mb-2">
                             <div className="bg-white/5 border border-white/10 rounded-2xl rounded-tl-sm px-3 py-2 max-w-[80%]">
                               <div className="text-[10px] text-amber-300 font-semibold mb-0.5">ADMIN</div>
-                              <p className="text-xs text-slate-200 whitespace-pre-wrap break-words">{msg.response}</p>
+                              <p className="text-xs text-slate-900 whitespace-pre-wrap break-words">{msg.response}</p>
                             </div>
                           </div>
                         )}
@@ -2744,10 +2744,10 @@ export default function Home() {
               <div className="col-span-2 bg-sky-50 dark:bg-sky-950/30 p-3 rounded-2xl border border-sky-200 dark:border-sky-800">
                 <p className="text-xs font-semibold text-sky-800 dark:text-sky-200 mb-1">Your contact details (private — never published)</p>
                 <div className="grid grid-cols-2 gap-2 mt-2">
-                  <Input className="text-white" placeholder="Your name *" value={sellForm.sellerName} onChange={e => setSellForm({ ...sellForm, sellerName: e.target.value })} />
-                  <Input className="text-white" placeholder="Phone number *" value={sellForm.sellerPhone} onChange={e => setSellForm({ ...sellForm, sellerPhone: e.target.value })} />
+                  <Input className="text-slate-900" placeholder="Your name *" value={sellForm.sellerName} onChange={e => setSellForm({ ...sellForm, sellerName: e.target.value })} />
+                  <Input className="text-slate-900" placeholder="Phone number *" value={sellForm.sellerPhone} onChange={e => setSellForm({ ...sellForm, sellerPhone: e.target.value })} />
                 </div>
-                <Input className="text-white" placeholder="Email (optional)" value={sellForm.sellerEmail} onChange={e => setSellForm({ ...sellForm, sellerEmail: e.target.value })} className="mt-2" />
+                <Input className="text-slate-900 mt-2" placeholder="Email (optional)" value={sellForm.sellerEmail} onChange={e => setSellForm({ ...sellForm, sellerEmail: e.target.value })} />
               </div>
               <div className="col-span-2 flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setSellOpen(false)}>Cancel</Button>
@@ -4067,7 +4067,7 @@ function AdminPanel({ vehicleRequests, adminMessages, adminTeam, respondToMessag
                         <div className="text-[10px] text-sky-300 font-semibold mb-0.5">
                           {(msg.username || msg.userEmail.split('@')[0]).toUpperCase()}
                         </div>
-                        <p className="text-xs text-white whitespace-pre-wrap break-words">{msg.message}</p>
+                        <p className="text-xs text-slate-900 whitespace-pre-wrap break-words">{msg.message}</p>
                         <div className="text-[9px] text-slate-500 mt-1">{fmtDate(msg.createdAt)}</div>
                       </div>
                     </div>
@@ -4091,7 +4091,7 @@ function AdminPanel({ vehicleRequests, adminMessages, adminTeam, respondToMessag
                             <div className={`text-[10px] font-semibold mb-0.5 ${isAdminReply ? 'text-amber-300' : 'text-sky-300'}`}>
                               {isAdminReply ? 'YOU (ADMIN)' : userLabel}
                             </div>
-                            <p className={`text-xs whitespace-pre-wrap break-words ${isAdminReply ? 'text-slate-200' : 'text-white'}`}>
+                            <p className={`text-xs whitespace-pre-wrap break-words text-slate-900`}>
                               {reply.text}
                             </p>
                             <div className="text-[9px] text-slate-500 mt-1">{fmtDate(reply.createdAt)}</div>
@@ -4107,7 +4107,7 @@ function AdminPanel({ vehicleRequests, adminMessages, adminTeam, respondToMessag
                       <div className="flex justify-end mb-2">
                         <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl rounded-tr-sm px-3 py-2 max-w-[80%]">
                           <div className="text-[10px] text-amber-300 font-semibold mb-0.5">YOU (ADMIN)</div>
-                          <p className="text-xs text-slate-200 whitespace-pre-wrap break-words">{msg.response}</p>
+                          <p className="text-xs text-slate-900 whitespace-pre-wrap break-words">{msg.response}</p>
                         </div>
                       </div>
                     )}
