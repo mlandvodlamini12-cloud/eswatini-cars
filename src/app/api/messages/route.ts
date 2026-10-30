@@ -37,6 +37,28 @@ export async function PATCH(req: NextRequest) {
     const session = token ? await verifySessionToken(token) : null
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     const body = await req.json()
+
+    // Handle "mark as read" — marks all of the user's 'responded' messages
+    // as 'read' so the unread badge disappears from the Messages button.
+    // Triggered when the user opens the Messages inbox view.
+    if (body.markAsRead) {
+      if (session.role === 'admin') {
+        // Admin sees all messages — mark all 'responded' as 'read'
+        await db.contactMessage.updateMany({
+          where: { status: 'responded' },
+          data: { status: 'read' },
+        })
+      } else {
+        // Regular user — only mark their own 'responded' messages as 'read'
+        await db.contactMessage.updateMany({
+          where: { userEmail: session.email, status: 'responded' },
+          data: { status: 'read' },
+        })
+      }
+      return NextResponse.json({ success: true, message: 'Messages marked as read' })
+    }
+
+    // Handle reply (existing behavior)
     const { id, response } = body
     if (!id || !response) return NextResponse.json({ error: 'id and response required' }, { status: 400 })
     const existing = await db.contactMessage.findUnique({ where: { id } })
@@ -45,7 +67,9 @@ export async function PATCH(req: NextRequest) {
     const isOwner = existing.userEmail === session.email
     if (!isAdmin && !isOwner) return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
     const reply = await db.contactReply.create({ data: { messageId: id, sender: isAdmin ? 'admin' : 'user', text: response } })
-    await db.contactMessage.update({ where: { id }, data: { status: 'responded', response, updatedAt: new Date() } })
+    // When admin replies, set status to 'responded' (triggers the unread badge for the user).
+    // When user replies, set status to 'new' (triggers the unread badge for admin, if we add one).
+    await db.contactMessage.update({ where: { id }, data: { status: isAdmin ? 'responded' : 'new', response, updatedAt: new Date() } })
     return NextResponse.json({ reply, message: 'Reply sent' })
   } catch (err: any) {
     return NextResponse.json({ error: 'Failed' }, { status: 500 })

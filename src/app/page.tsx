@@ -1540,6 +1540,24 @@ export default function Home() {
     }
   }, [])
 
+  // Mark all 'responded' messages as 'read' — called when the user opens
+  // the Messages inbox view. This clears the unread badge (the red "1" on
+  // the Messages button) because the user has now seen the admin's replies.
+  const markMessagesAsRead = useCallback(async () => {
+    try {
+      await fetch('/api/messages', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ markAsRead: true }),
+      })
+      // Re-fetch to update the local state (status changes from 'responded' to 'read')
+      await fetchMessages()
+    } catch {
+      // Silent failure — not critical if marking as read fails
+    }
+  }, [fetchMessages])
+
   // Initial messages fetch + 30s auto-refresh so new admin replies appear
   // without the user having to manually reload. Same cadence as listings.
   //
@@ -1565,6 +1583,15 @@ export default function Home() {
     }, 30000) // 30s
     return () => clearInterval(interval)
   }, [fetchMessages, currentUser])
+
+  // Mark messages as read when the user opens the Messages inbox view.
+  // This clears the red unread badge — once they've SEEN the admin's
+  // replies, the badge should disappear.
+  useEffect(() => {
+    if (view === 'messages' && currentUser) {
+      markMessagesAsRead()
+    }
+  }, [view, currentUser, markMessagesAsRead])
 
   // Submit a NEW message to admin — POSTs to /api/messages which persists
   // to Turso DB. Then re-fetches the full list so the UI reflects the actual
