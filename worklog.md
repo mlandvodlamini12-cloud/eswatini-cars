@@ -1647,3 +1647,50 @@ Stage Summary:
 - ✅ Cross-links between /terms and /privacy also use plain <a> tags
 - ✅ DEPLOY COMPLETE: https://eswatini-cars.vercel.app (commit 1778aee)
 - ✅ NO REGRESSIONS: existing features untouched
+
+---
+Task ID: terms-privacy-in-dialog-modal-1
+Agent: main
+Task: Make T&C / Privacy Policy pop up as a modal within the registration dialog (like the Disclaimer does), so the form is preserved when the user closes the modal.
+
+Work Log:
+User reported: "When user is creating account and has to read the Ts and Cs and Privacy Policy, they click it and the whole information appears now when they click back it takes them to the homepage instead of back to the registration form where they clicked the links. What if maybe you can make the Ts and Cs and Privacy Policy at registration form to pop up like Disclaimer does and user reads and scrolls down then when he closes the pop up form still remains without refreshing back to homepage."
+
+Root cause:
+The T&C checkbox in the registration form used <a href="/terms" target="_blank"> and <a href="/privacy" target="_blank"> links. Even though target="_blank" opens a new tab, on mobile browsers this often behaves like a navigation (the new tab opens but the original tab may also navigate). Worse, when the user closes the new tab and returns to the registration form, mobile browsers may have refreshed the page, losing the form state.
+
+Fix (commit 4844af6):
+1. New state: legalModal ('terms' | 'privacy' | null)
+2. Replaced <a> tags with <button> tags that call setLegalModal('terms') / setLegalModal('privacy') with e.preventDefault() so clicking them doesn't toggle the checkbox
+3. Added a fixed-position overlay div (z-index 100, higher than Radix Dialog's z-50) that renders when legalModal is not null, containing:
+   - Sticky header with title + X close button
+   - Scrollable content area (max-h-[85vh] overflow-y-auto) with the FULL T&C or Privacy Policy text
+   - Sticky footer with a full-width "Close" button
+4. Clicking the backdrop closes the modal
+5. Clicking inside the modal doesn't close it (stopPropagation)
+6. legalModal resets to null after successful registration
+
+Implementation note:
+Used a plain <div> overlay instead of a Radix <Dialog> because Radix Dialogs use a Portal that renders at the document root, which can cause focus-trapping conflicts when nested inside another Dialog. A plain fixed-position div with high z-index is simpler and more reliable for this nested-overlay use case.
+
+Deploy:
+- Commit 4844af6: feat(register): T&C / Privacy open as in-dialog modal (form preserved)
+- Deploy URL: https://eswatini-cars-jsw0h74ah-eswatini-cars.vercel.app → aliased to https://eswatini-cars.vercel.app
+
+Verification (agent-browser against live site):
+1. ✅ Opened registration dialog, filled name "PRESERVED AGAIN"
+2. ✅ Clicked "Terms & Conditions" link in the checkbox label
+3. ✅ Modal appeared with title "Terms & Conditions" + "About Eswatini Cars" section
+4. ✅ Full T&C content rendered (sections 1-13 visible including "Kingdom of Eswatini" governing law)
+5. ✅ Clicked backdrop to close modal
+6. ✅ Registration form preserved: name still "PRESERVED AGAIN" (namePreserved: true)
+7. ✅ Also tested Privacy Policy modal — appeared with "Our commitment to your privacy" + "Data Protection Act, 2022" + "Section 22 of the Constitution" content
+
+Stage Summary:
+- ✅ T&C / PRIVACY NOW OPEN AS IN-DIALOG MODALS (no navigation away)
+- ✅ Registration form is preserved when the modal closes
+- ✅ User can scroll through the full document, then close and continue registering
+- ✅ DEPLOY COMPLETE: https://eswatini-cars.vercel.app (commit 4844af6)
+- ✅ NO REGRESSIONS: existing features untouched
+
+Note: The /terms and /privacy standalone routes still exist (accessible from the footer links) for users who want to read them outside the registration flow. The in-dialog modal is an ADDITIONAL way to view them, specifically for the registration context.
