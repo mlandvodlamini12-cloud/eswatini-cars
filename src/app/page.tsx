@@ -2897,24 +2897,11 @@ export default function Home() {
                 )}
               </button>
 
-              {/* My Requests (logged-in only — shows vehicle requests the user submitted) */}
-              <button
-                onClick={() => { if (currentUser) { setView('myrequests') } else { setShowLogin(true) }; setDrawerOpen(false) }}
-                className={`w-full flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all text-left ${currentUser ? '' : 'opacity-50'}`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center">
-                    <Search className="w-5 h-5 text-amber-400" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold text-white">My Requests</div>
-                    <div className="text-xs text-slate-400">{currentUser ? 'Vehicle requests you submitted' : 'Login to view your requests'}</div>
-                  </div>
-                </div>
-                {currentUser && myRequests.length > 0 && (
-                  <Badge className="bg-amber-500 text-white text-[10px]">{myRequests.length}</Badge>
-                )}
-              </button>
+              {/* My Requests button was here but was a duplicate of the one
+                  above (line 2814). Removed to clean up the drawer — there
+                  should only be ONE "My Requests" button. The remaining one
+                  above uses the Bell icon + proper faint styling when logged
+                  out, which matches the Saved Vehicles pattern. */}
 
               {/* Messages inbox — opens the user's conversation list with admin.
                   Shows all messages + admin replies + lets user reply back.
