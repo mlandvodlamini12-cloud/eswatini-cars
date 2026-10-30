@@ -3,8 +3,8 @@ import { db } from '@/lib/db'
 import { sendEnquiryNotification, sendBuyerConfirmation, ADMIN_EMAIL } from '@/lib/email'
 
 // POST /api/enquiries — buyer submits an enquiry on a listing
-// NOTE: All enquiries go DIRECTLY to admin (broker), never to the seller.
-// The broker handles all negotiation, then arranges a 3-party meetup.
+// NOTE: All enquiries go DIRECTLY to the admin team, never to the seller.
+// The admin team handles all negotiation, then arranges a 3-party meetup.
 export async function POST(req: NextRequest) {
   const body = await req.json()
 
@@ -39,12 +39,12 @@ export async function POST(req: NextRequest) {
   const listingTitle = `${listing.year} ${listing.make} ${listing.model}`
   if (ADMIN_EMAIL) {
     sendEnquiryNotification({
-      brokerEmail: ADMIN_EMAIL,
+      adminEmail: ADMIN_EMAIL,
       buyerName: body.buyerName,
       buyerPhone: body.buyerPhone,
       listingTitle,
       message: body.message,
-    }).catch((e) => console.error('[email] broker notification failed:', e))
+    }).catch((e) => console.error('[email] admin notification failed:', e))
   }
   if (body.buyerEmail) {
     sendBuyerConfirmation({
@@ -56,6 +56,6 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     enquiry,
-    message: 'Enquiry sent to ESWATINI CARS. Our broker will contact you within 24 hours.',
+    message: 'Enquiry sent to ESWATINI CARS. Our team will contact you within 24 hours.',
   })
 }

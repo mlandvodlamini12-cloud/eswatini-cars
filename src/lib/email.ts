@@ -54,10 +54,10 @@ export async function sendEmail(
 }
 
 /**
- * Send notification to the broker (admin) when a new enquiry arrives.
+ * Send notification to the admin team when a new enquiry arrives.
  */
 export async function sendEnquiryNotification(opts: {
-  brokerEmail: string
+  adminEmail: string
   buyerName: string
   buyerPhone: string
   listingTitle: string
@@ -68,7 +68,7 @@ export async function sendEnquiryNotification(opts: {
     <div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
       <div style="background: #0F172A; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
         <h2 style="margin: 0;">New Buyer Enquiry</h2>
-        <p style="margin: 6px 0 0; opacity: 0.8;">Eswatini Cars — Broker Dashboard</p>
+        <p style="margin: 6px 0 0; opacity: 0.8;">Eswatini Cars — Admin Dashboard</p>
       </div>
       <div style="background: #F8FAFC; padding: 24px; border-radius: 0 0 8px 8px; border: 1px solid #E2E8F0;">
         <p><strong>Vehicle:</strong> ${opts.listingTitle}</p>
@@ -84,7 +84,7 @@ export async function sendEnquiryNotification(opts: {
       </div>
     </div>
   `
-  return sendEmail(opts.brokerEmail, subject, html)
+  return sendEmail(opts.adminEmail, subject, html)
 }
 
 /**
@@ -104,10 +104,10 @@ export async function sendBuyerConfirmation(opts: {
       <div style="background: #F8FAFC; padding: 24px; border-radius: 0 0 8px 8px; border: 1px solid #E2E8F0;">
         <p>Hi ${opts.buyerName},</p>
         <p>We've received your enquiry about <strong>${opts.listingTitle}</strong>.</p>
-        <p>Our broker will contact you within 24 hours to arrange a viewing and answer any questions you may have.</p>
+        <p>Our team will contact you within 24 hours to arrange a viewing and answer any questions you may have.</p>
         <p>If you'd like to reach us sooner, call <strong>+268 7600 0000</strong> (Mon-Sat 8am-6pm).</p>
         <p style="margin-top: 24px; font-size: 12px; color: #64748B;">
-          Eswatini Cars — Connecting buyers, sellers, and a trusted broker.
+          Eswatini Cars — Connecting buyers, sellers, and our trusted team.
         </p>
       </div>
     </div>
@@ -137,10 +137,10 @@ export async function sendWelcomeEmail(opts: {
       </div>
       <div style="background: #F8FAFC; padding: 24px; border-radius: 0 0 8px 8px; border: 1px solid #E2E8F0;">
         <p>Hi ${opts.name},</p>
-        <p>Your account has been created. You can now save favourite listings, message the broker, and track your enquiries all in one place.</p>
+        <p>Your account has been created. You can now save favourite listings, message our team, and track your enquiries all in one place.</p>
         ${verifyBlock}
         <p style="margin-top: 24px; font-size: 12px; color: #64748B;">
-          Eswatini Cars — Connecting buyers, sellers, and a trusted broker.
+          Eswatini Cars — Connecting buyers, sellers, and our trusted team.
         </p>
       </div>
     </div>

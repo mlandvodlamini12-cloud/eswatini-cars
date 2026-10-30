@@ -1,7 +1,7 @@
 {
   "name": "ESWATINI CARS",
   "short_name": "Eswatini Car",
-  "description": "Eswatini's #1 managed vehicle marketplace. Safe, verified, broker-managed viewings. No scammers.",
+  "description": "Eswatini's #1 managed vehicle marketplace. Safe, verified, supervised viewings. No scammers.",
   "start_url": "/?utm_source=pwa",
   "scope": "/",
   "id": "/?utm_source=pwa",

@@ -51,7 +51,7 @@ type Enquiry = {
 
 type Message = {
   id: string
-  sender: string // "broker" | "buyer"
+  sender: string // "admin" | "buyer" (formerly "broker" | "buyer" — renamed)
   text: string
   createdAt: string
 }
@@ -397,13 +397,11 @@ const REGIONS = ['all', 'Hhohho', 'Manzini', 'Shiselweni', 'Lubombo']
 const FUELS = ['all', 'petrol', 'diesel', 'hybrid', 'electric']
 const TRANSMISSIONS = ['all', 'manual', 'automatic']
 
-const COMMISSION_RATES = [
-  { range: 'Under E100,000', rate: '3%', note: 'Min E1,500' },
-  { range: 'E100,000 – E250,000', rate: '2.5%', note: '' },
-  { range: 'Over E250,000', rate: '2%', note: 'Capped at E10,000' },
-  { range: 'Parts & Accessories', rate: '10%', note: 'Flat fee' },
-]
-
+// Commission schedule removed — the app no longer displays commission rates
+// or payment language. Fee arrangements (if any) are handled privately between
+// admin and the user via the Messages feature, and the app stays neutral on
+// the topic of payments. This keeps the app's public-facing posture as a
+// "free listing + connection" platform, with fee details available on request.
 const ADMIN_PIN = '1374' // 🔐 Custom admin PIN
 
 // === ADMIN EMAIL ALLOWLIST ===
@@ -1142,6 +1140,11 @@ export default function Home() {
 
   // Register new user
   const [registerForm, setRegisterForm] = useState({ name: '', email: '', phone: '', password: '', username: '' })
+  // T&C agreement checkbox state — user must check this to register.
+  // Required so we have a record of explicit consent to the Terms & Conditions
+  // and Privacy Policy, which is good practice under Eswatini's Data Protection
+  // Act, 2022 (consent must be freely given, specific, informed, and unambiguous).
+  const [agreedToTerms, setAgreedToTerms] = useState(false)
   const submitRegister = async () => {
     if (!registerForm.email || !registerForm.name) return
     // If we're in the OTP step, verify the code first.
@@ -1210,6 +1213,7 @@ export default function Home() {
         }, 100)
       }
       setRegisterForm({ name: '', email: '', phone: '', password: '', username: '' })
+      setAgreedToTerms(false) // reset the T&C checkbox for next time
       setPhoneVerifyStep('form')
       setOtpCode('')
       setConfirmationResult(null)
@@ -1665,7 +1669,7 @@ export default function Home() {
             '@type': 'WebSite',
             name: 'Eswatini Cars',
             url: 'https://eswatinicars.co.sz',
-            description: "Eswatini's #1 managed vehicle marketplace. Safe, verified, broker-supervised viewings across all four regions of Eswatini.",
+            description: "Eswatini's #1 managed vehicle marketplace. Safe, verified, supervised viewings across all four regions of Eswatini.",
             potentialAction: {
               '@type': 'SearchAction',
               target: 'https://eswatinicars.co.sz/?q={search_term_string}',
@@ -1815,7 +1819,7 @@ export default function Home() {
                 <h2 className="text-3xl md:text-5xl font-bold mb-2 bg-gradient-to-r from-white via-sky-200 to-sky-400 bg-clip-text text-transparent leading-tight">
                   Find your next vehicle in Eswatini
                 </h2>
-                <p className="text-slate-300 mb-6 text-sm md:text-base">Safe. Verified. Broker-managed viewings. No scammers.</p>
+                <p className="text-slate-300 mb-6 text-sm md:text-base">Safe. Verified. Managed viewings. No scammers.</p>
 
                 {/* Quick stats bar */}
                 <div className="flex flex-wrap gap-4 mb-6 text-xs">
@@ -2102,15 +2106,17 @@ export default function Home() {
                     <div className="text-slate-400 text-xs leading-relaxed">A Eswatini Cars representative is present at every test drive.</div>
                   </div>
                 </div>
-                {/* Card 3 */}
+                {/* Card 3 — was "Pay only on success" with commission language.
+                    Replaced with a transparency / trust card that doesn't mention
+                    payments, commission, or "pay on success" framing. */}
                 <div className="group relative overflow-hidden rounded-2xl p-5 bg-gradient-to-br from-white/5 to-transparent border border-white/10 hover:border-sky-400/50 transition-all duration-300 hover:scale-[1.02]">
                   <div className="absolute top-0 right-0 w-20 h-20 bg-amber-500/10 rounded-full blur-2xl group-hover:bg-amber-500/20 transition-all" />
                   <div className="relative z-10">
                     <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center mb-3">
                       <Handshake className="w-5 h-5 text-amber-400" />
                     </div>
-                    <div className="font-bold mb-1 text-white text-sm">Pay only on success</div>
-                    <div className="text-slate-400 text-xs leading-relaxed">No upfront fees. Commission is settled in person, on the spot, only if the car sells.</div>
+                    <div className="font-bold mb-1 text-white text-sm">Transparent & honest</div>
+                    <div className="text-slate-400 text-xs leading-relaxed">No hidden surprises. Listing is free, and any service-related questions are answered upfront by our team.</div>
                   </div>
                 </div>
               </div>
@@ -2410,44 +2416,35 @@ export default function Home() {
               <CardContent className="space-y-4">
                 <Step n={1} title="Enquire" desc="Tap 'Enquire' on any vehicle. Enter your name, number, and message. Your enquiry goes straight to the ESWATINI CARS team — never to the seller directly." />
                 <Step n={2} title="We verify & call you back" desc="We confirm the price, condition, and availability with the seller. Then we call you to answer questions and arrange a viewing time that suits everyone." />
-                <Step n={3} title="Three-party viewing" desc="You, the seller, and our representative meet at the arranged place. You inspect the car, take a test drive, and agree the price. If you buy, commission is settled on the spot and you drive away." />
+                <Step n={3} title="Three-party viewing" desc="You, the seller, and our representative meet at the arranged place. You inspect the car, take a test drive, and agree the price. We are present to help things go smoothly — you drive away only when you are happy." />
               </CardContent>
             </Card>
+
+            {/* Service information card — replaces the old "Commission schedule" card.
+                The previous card published a formal commission table, which signalled
+                a regulated brokerage model. We've replaced it with a short, neutral
+                statement that directs users to message admin for any fee-related
+                questions. No rates, no "commission" word, no "pay on success" framing. */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><TrendingUp className="w-5 h-5 text-sky-500" /> Commission schedule</CardTitle>
-                <CardDescription>Paid in person, only on successful sale.</CardDescription>
+                <CardTitle className="flex items-center gap-2"><Sparkles className="w-5 h-5 text-sky-500" /> Service information</CardTitle>
+                <CardDescription>Listing is free. Here's what else you should know.</CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-100 dark:bg-slate-800">
-                      <tr>
-                        <th className="text-left p-3 font-semibold">Sale price range</th>
-                        <th className="text-left p-3 font-semibold">Commission</th>
-                        <th className="text-left p-3 font-semibold">Notes</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {COMMISSION_RATES.map((row, i) => (
-                        <tr key={i} className={i % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-950'}>
-                          <td className="p-3">{row.range}</td>
-                          <td className="p-3 font-mono font-bold text-sky-600 dark:text-sky-400">{row.rate}</td>
-                          <td className="p-3 text-slate-500 text-xs">{row.note || '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+              <CardContent className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                <div className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5" /> Listing a vehicle is completely free — no upfront cost to the seller.</div>
+                <div className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5" /> Our team verifies every listing and arranges a supervised viewing between buyer and seller.</div>
+                <div className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5" /> Your phone number is never published on the listing — buyers reach you through us first.</div>
+                <div className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5" /> For any questions about how the service works or possible service-related fees, message our team directly via the Messages feature.</div>
               </CardContent>
             </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Plus className="w-5 h-5 text-sky-500" /> For sellers</CardTitle>
                 <CardDescription>List your vehicle for free in 2 minutes.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
-                <div className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5" /> Free to list. No payment until the vehicle sells.</div>
+                <div className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5" /> Free to list. Your vehicle goes live immediately.</div>
                 <div className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5" /> Your phone number is never published. We handle all buyer communication.</div>
                 <div className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5" /> We bring vetted, serious buyers — no time-wasters.</div>
                 <Button className="mt-3 bg-sky-500 text-slate-900 hover:bg-sky-400" onClick={() => setSellOpen(true)}>
@@ -2593,7 +2590,7 @@ export default function Home() {
             <DialogDescription>
               {editingListing
                 ? 'Update the details below. Changes go live immediately across all apps.'
-                : 'Fill in the details. Listing goes live immediately. No payment until your vehicle sells.'}
+                : 'Fill in the details. Listing goes live immediately across all apps.'}
             </DialogDescription>
           </DialogHeader>
           {sellSubmitted ? (
@@ -3077,7 +3074,7 @@ export default function Home() {
               <img src="/logo.png" alt="ESWATINI CARS" className="w-8 h-8 rounded-full" />
               <span className="font-bold text-white">ESWATINI CARS</span>
             </div>
-            <p className="text-xs text-slate-400">Managed vehicle marketplace. Safe, verified, broker-supervised viewings across all four regions of Eswatini.</p>
+            <p className="text-xs text-slate-400">Managed vehicle marketplace. Safe, verified, supervised viewings across all four regions of Eswatini.</p>
             <div className="mt-3">
               <h4 className="font-semibold text-white mb-2 text-xs uppercase">Regions covered</h4>
               <div className="flex flex-wrap gap-1">
@@ -3104,8 +3101,13 @@ export default function Home() {
             </div>
           </div>
         </div>
-        <div className="text-center text-xs text-slate-500 mt-6 pt-4 border-t border-slate-800">
-          © {new Date().getFullYear()} ESWATINI CARS. All rights reserved.
+        <div className="text-center text-xs text-slate-500 mt-6 pt-4 border-t border-slate-800 space-y-1">
+          <div>© {new Date().getFullYear()} ESWATINI CARS. All rights reserved.</div>
+          <div className="flex items-center justify-center gap-3 flex-wrap">
+            <a href="/terms" className="hover:text-sky-400 transition-colors">Terms &amp; Conditions</a>
+            <span className="text-slate-700">·</span>
+            <a href="/privacy" className="hover:text-sky-400 transition-colors">Privacy Policy</a>
+          </div>
         </div>
       </footer>
 
@@ -3219,10 +3221,10 @@ export default function Home() {
               // Admin emails use the shared admin PIN (sent automatically by submitLogin).
               // The password field is hidden for admin emails so users don't get
               // confused about why their password "doesn't work" — they should be
-              // using the broker PIN, not a personal password.
+              // using the admin PIN, not a personal password.
               <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-xs text-amber-200">
                 <div className="font-semibold mb-1 flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" /> Admin email detected</div>
-                Admin accounts use the shared broker PIN instead of a personal password. Click Login to continue with your admin PIN.
+                Admin accounts use the shared admin PIN instead of a personal password. Click Login to continue with your admin PIN.
               </div>
             ) : (
               <div><Label>Password *</Label><Input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="Min 8 characters" minLength={8} /></div>
@@ -3287,11 +3289,39 @@ export default function Home() {
               <div><Label>Email *</Label><Input type="email" value={registerForm.email} onChange={e => setRegisterForm({...registerForm, email: e.target.value})} placeholder="john@email.com" /></div>
               <div><Label>Password * (min 8 characters)</Label><Input type="password" value={registerForm.password} onChange={e => setRegisterForm({...registerForm, password: e.target.value})} placeholder="••••••••" minLength={8} /></div>
               <div><Label>Phone *</Label><Input value={registerForm.phone} onChange={e => setRegisterForm({...registerForm, phone: e.target.value})} placeholder="+268 7XXX XXXX" /></div>
+
+              {/*
+                Terms & Conditions agreement checkbox.
+                User must check this to register — we record explicit consent
+                to the Terms & Conditions and Privacy Policy, which is good
+                practice under Eswatini's Data Protection Act, 2022.
+
+                The checkbox label contains clickable links to /terms and
+                /privacy so the user can read the full documents before
+                agreeing. Links open in a new tab so the registration
+                dialog stays open.
+              */}
+              <label className="flex items-start gap-2 cursor-pointer select-none p-2 rounded-lg hover:bg-white/5 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={agreedToTerms}
+                  onChange={e => setAgreedToTerms(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-slate-400 text-sky-500 focus:ring-sky-500 focus:ring-offset-0 bg-transparent"
+                />
+                <span className="text-xs text-slate-300 leading-relaxed">
+                  I agree to the{' '}
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-sky-400 hover:text-sky-300 underline">Terms &amp; Conditions</a>
+                  {' '}and{' '}
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-sky-400 hover:text-sky-300 underline">Privacy Policy</a>
+                  . I understand that Eswatini Cars connects buyers and sellers, that my phone number is never published, and that any sale is between me and the other party.
+                </span>
+              </label>
+
               <DialogFooter>
                 <Button variant="outline" onClick={() => setShowRegister(false)}>Cancel</Button>
                 <Button
                   className="bg-sky-500 text-white hover:bg-sky-400"
-                  disabled={!registerForm.name || !registerForm.email || registerForm.password.length < 8 || !registerForm.phone}
+                  disabled={!registerForm.name || !registerForm.email || registerForm.password.length < 8 || !registerForm.phone || !agreedToTerms}
                   onClick={async () => {
                     if (!registerForm.phone) return
                     // Send OTP via Firebase phone auth (falls back to dev mock).
@@ -3302,8 +3332,9 @@ export default function Home() {
                 >
                   Send OTP
                 </Button>
-                {/* Quick-register without phone verification (for testing/dev) */}
-                <Button variant="ghost" className="w-full text-xs text-slate-500" onClick={submitRegister}>Skip phone verification →</Button>
+                {/* Quick-register without phone verification (for testing/dev).
+                    Also requires the T&C checkbox to be checked. */}
+                <Button variant="ghost" className="w-full text-xs text-slate-500" disabled={!agreedToTerms} onClick={submitRegister}>Skip phone verification →</Button>
               </DialogFooter>
               <p className="text-[10px] text-slate-500 text-center">⚠️ Phone OTP via Firebase. Email verification requires a cloud email service.</p>
               {/* Invisible reCAPTCHA container — Firebase Phone Auth needs this div
@@ -3342,7 +3373,7 @@ export default function Home() {
             <p>ESWATINI CARS assists in making buyers and sellers of vehicles and/or parts find each other with ease. However, ESWATINI CARS is not involved in the actual arrangements between seller and buyer at the point of vehicle or parts handover.</p>
             <p>ESWATINI CARS does not offer mechanical inspection, vehicle history verification, or condition assessment. Buyers are strongly advised to bring their own qualified mechanic or engineer for vehicle or parts inspection before finalizing any purchase.</p>
             <p>ESWATINI CARS shall not be held liable for any vehicle or parts faults, defects, misrepresentations, or damages arising after the sale of any vehicle or parts. All transactions are conducted solely between the buyer and seller.</p>
-            <p>ESWATINI CARS facilitates the initial connection and may attend viewings as a broker, but does not guarantee the accuracy of any listing information, vehicle condition, or legal status of any vehicle or parts.</p>
+            <p>ESWATINI CARS facilitates the initial connection and may attend viewings as a representative of our team, but does not guarantee the accuracy of any listing information, vehicle condition, or legal status of any vehicle or parts.</p>
             <p>By using this platform, you acknowledge and agree to these terms. All sales are final between buyer and seller.</p>
           </div>
           <div className="flex justify-end pt-2">
@@ -3546,7 +3577,7 @@ function AdminDashboard({ vehicleRequests, adminMessages, adminTeam, respondToMe
       <Card className="max-w-md mx-auto">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Lock className="w-5 h-5" /> Admin Login</CardTitle>
-          <CardDescription>Enter your PIN to access the broker dashboard.</CardDescription>
+          <CardDescription>Enter your PIN to access the admin dashboard.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div>
@@ -3557,7 +3588,7 @@ function AdminDashboard({ vehicleRequests, adminMessages, adminTeam, respondToMe
           <Button className="w-full bg-sky-500 text-slate-900 hover:bg-sky-400" onClick={login}>
             <Lock className="w-4 h-4 mr-1" /> Unlock
           </Button>
-          <p className="text-[10px] text-slate-500 text-center">Admin-only. Enter the broker PIN to continue.</p>
+          <p className="text-[10px] text-slate-500 text-center">Admin-only. Enter the admin PIN to continue.</p>
         </CardContent>
       </Card>
     )
@@ -3603,7 +3634,7 @@ function AdminPanel({ vehicleRequests, adminMessages, adminTeam, respondToMessag
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-2xl font-bold flex items-center gap-2 text-white">
-          <LayoutDashboard className="w-6 h-6 text-sky-500" /> Broker Dashboard
+          <LayoutDashboard className="w-6 h-6 text-sky-500" /> Admin Dashboard
         </h2>
         <div className="flex gap-1 flex-wrap">
           <Button size="sm" variant={tab === 'overview' ? 'default' : 'outline'} onClick={() => setTab('overview')}>Overview</Button>

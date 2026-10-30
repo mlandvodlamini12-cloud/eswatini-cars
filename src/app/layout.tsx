@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "ESWATINI CARS — Managed Vehicle Marketplace",
-  description: "Eswatini's #1 managed vehicle marketplace. Safe, verified, broker-managed viewings. No scammers. Buy and sell cars, bakkies, vans, heavy vehicles, bikes, and parts across all four regions of Eswatini.",
-  keywords: ["Eswatini cars", "cars for sale Eswatini", "vehicle marketplace Swaziland", "buy car Mbabane", "Manzini cars", "bakkies Eswatini", "car broker"],
+  description: "Eswatini's #1 managed vehicle marketplace. Safe, verified, supervised viewings. No scammers. Buy and sell cars, bakkies, vans, heavy vehicles, bikes, and parts across all four regions of Eswatini.",
+  keywords: ["Eswatini cars", "cars for sale Eswatini", "vehicle marketplace Swaziland", "buy car Mbabane", "Manzini cars", "bakkies Eswatini", "car marketplace"],
   authors: [{ name: "ESWATINI CARS" }],
   manifest: "/manifest.json",
   icons: {
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "ESWATINI CARS — Managed Vehicle Marketplace",
-    description: "Safe, verified, broker-managed vehicle viewings across Eswatini. No scammers. Free to list.",
+    description: "Safe, verified, supervised vehicle viewings across Eswatini. No scammers. Free to list.",
     siteName: "ESWATINI CARS",
     type: "website",
     locale: "en_US",
@@ -50,7 +50,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "ESWATINI CARS",
-    description: "Eswatini's #1 managed vehicle marketplace. Safe, verified, broker-managed viewings.",
+    description: "Eswatini's #1 managed vehicle marketplace. Safe, verified, supervised viewings.",
   },
 };
 
