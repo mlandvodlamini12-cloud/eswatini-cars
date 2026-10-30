@@ -1145,6 +1145,13 @@ export default function Home() {
   // and Privacy Policy, which is good practice under Eswatini's Data Protection
   // Act, 2022 (consent must be freely given, specific, informed, and unambiguous).
   const [agreedToTerms, setAgreedToTerms] = useState(false)
+  // In-dialog modal state for showing the full T&C / Privacy Policy text.
+  // We render these as overlays ON TOP of the registration dialog (using a high
+  // z-index) instead of navigating to /terms or /privacy, because navigating
+  // away would lose the user's filled-in registration form. This way the user
+  // can read the full document, close it, and the form is still there.
+  // 'terms' = show T&C, 'privacy' = show Privacy Policy, null = neither.
+  const [legalModal, setLegalModal] = useState<'terms' | 'privacy' | null>(null)
   const submitRegister = async () => {
     if (!registerForm.email || !registerForm.name) return
     // If we're in the OTP step, verify the code first.
@@ -1214,6 +1221,7 @@ export default function Home() {
       }
       setRegisterForm({ name: '', email: '', phone: '', password: '', username: '' })
       setAgreedToTerms(false) // reset the T&C checkbox for next time
+      setLegalModal(null) // close any open legal modal
       setPhoneVerifyStep('form')
       setOtpCode('')
       setConfirmationResult(null)
@@ -3296,10 +3304,9 @@ export default function Home() {
                 to the Terms & Conditions and Privacy Policy, which is good
                 practice under Eswatini's Data Protection Act, 2022.
 
-                The checkbox label contains clickable links to /terms and
-                /privacy so the user can read the full documents before
-                agreeing. Links open in a new tab so the registration
-                dialog stays open.
+                The links to T&C / Privacy open as IN-DIALOG MODALS (not
+                navigating away) so the user's filled-in registration form
+                is preserved when they close the modal.
               */}
               <label className="flex items-start gap-2 cursor-pointer select-none p-2 rounded-lg hover:bg-white/5 transition-colors">
                 <input
@@ -3310,9 +3317,21 @@ export default function Home() {
                 />
                 <span className="text-xs text-slate-300 leading-relaxed">
                   I agree to the{' '}
-                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-sky-400 hover:text-sky-300 underline">Terms &amp; Conditions</a>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); setLegalModal('terms') }}
+                    className="text-sky-400 hover:text-sky-300 underline inline"
+                  >
+                    Terms &amp; Conditions
+                  </button>
                   {' '}and{' '}
-                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-sky-400 hover:text-sky-300 underline">Privacy Policy</a>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); setLegalModal('privacy') }}
+                    className="text-sky-400 hover:text-sky-300 underline inline"
+                  >
+                    Privacy Policy
+                  </button>
                   . I understand that Eswatini Cars connects buyers and sellers, that my phone number is never published, and that any sale is between me and the other party.
                 </span>
               </label>
@@ -3346,6 +3365,287 @@ export default function Home() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/*
+        IN-DIALOG LEGAL MODAL — shows the full Terms & Conditions or Privacy
+        Policy text as an overlay ON TOP of the registration dialog.
+
+        This solves the problem where clicking the T&C / Privacy links in the
+        registration form would navigate away (losing the user's filled-in
+        form). Now the links open this modal instead, which:
+        - Renders on top of the registration dialog (z-index higher than the
+          Radix Dialog's default z-50)
+        - Has its own scrollable content area (max-h-[85vh] overflow-y-auto)
+        - Has a Close button that just sets legalModal back to null
+        - When closed, the registration form is still there with all the
+          user's input preserved
+
+        We render the SAME content as the /terms and /privacy pages, but
+        inline (not as a separate route) so we don't need client-side
+        navigation. This keeps the React state of the registration form
+        intact.
+
+        Implementation note: We use a plain <div> overlay (not a Radix
+        <Dialog>) because Radix Dialogs use a Portal that renders at the
+        document root, which can cause focus-trapping conflicts when nested
+        inside another Dialog. A plain fixed-position div with high z-index
+        is simpler and more reliable for this nested-overlay use case.
+      */}
+      {legalModal && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          onClick={() => setLegalModal(null)} // click backdrop to close
+        >
+          <div
+            className="bg-[#0a1834] border border-white/10 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()} // don't close when clicking inside
+          >
+            {/* Modal header — sticky so it stays visible while scrolling */}
+            <div className="flex items-center justify-between p-4 border-b border-white/10 bg-[#0f1f4a] rounded-t-2xl sticky top-0 z-10">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <FileText className="w-5 h-5 text-sky-500" />
+                {legalModal === 'terms' ? 'Terms & Conditions' : 'Privacy Policy'}
+              </h2>
+              <button
+                onClick={() => setLegalModal(null)}
+                className="bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center text-white transition-colors"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Scrollable content area */}
+            <div className="overflow-y-auto p-5 text-sm text-slate-300 leading-relaxed flex-1">
+              {legalModal === 'terms' ? (
+                <>
+                  <p className="text-xs text-slate-500 mb-4">Last updated: 30 October 2026</p>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">1. About Eswatini Cars</h3>
+                  <p>Eswatini Cars (&quot;we&quot;, &quot;us&quot;, &quot;our&quot;, or &quot;the platform&quot;) is a managed vehicle marketplace that connects buyers and sellers of vehicles and vehicle parts across the four regions of Eswatini (Hhohho, Manzini, Shiselweni, and Lubombo). The platform is operated from within the Kingdom of Eswatini and is available to residents of Eswatini and visitors to the Kingdom.</p>
+                  <p className="mt-2">Eswatini Cars is a <strong>connection and listing platform</strong>. We help buyers and sellers find each other, we verify listings to reduce the risk of fraud, and we may attend viewings to help things go smoothly. We are <strong>not</strong> a party to any sale contract between a buyer and a seller, and we do not take ownership or possession of any vehicle listed on the platform.</p>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">2. Acceptance of these terms</h3>
+                  <p>By creating an account, browsing listings, posting a listing, sending an enquiry, sending a message through the platform, or otherwise using Eswatini Cars in any way, you confirm that:</p>
+                  <ul className="list-disc pl-6 mt-2 space-y-1">
+                    <li>You are at least 18 years old.</li>
+                    <li>You are legally able to enter into a binding agreement in the Kingdom of Eswatini.</li>
+                    <li>You have read, understood, and agree to be bound by these Terms &amp; Conditions and our Privacy Policy.</li>
+                  </ul>
+                  <p className="mt-2">If you do not agree with any part of these terms, please do not use the platform.</p>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">3. Our role in your transaction</h3>
+                  <p>Eswatini Cars facilitates the initial connection between a buyer and a seller. Specifically, we may:</p>
+                  <ul className="list-disc pl-6 mt-2 space-y-1">
+                    <li>Publish vehicle listings submitted by sellers.</li>
+                    <li>Receive enquiries from buyers and forward them to the relevant seller.</li>
+                    <li>Help arrange a viewing between the buyer, the seller, and (where possible) a representative of our team.</li>
+                    <li>Attend viewings in person where we are able to do so.</li>
+                  </ul>
+                  <p className="mt-2">We are <strong>not</strong> a party to the contract of sale between a buyer and a seller. The sale, the price, the payment method, and the transfer of ownership are all matters that are agreed directly between the buyer and the seller. We do not hold any money on behalf of either party, we do not process payments between buyer and seller through the platform, and we do not guarantee that any sale will be completed.</p>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">4. Listing is free; service-related questions</h3>
+                  <p>Posting a vehicle listing on Eswatini Cars is free of charge — there is no upfront cost to the seller. The platform does not process any payments between buyers and sellers, and Eswatini Cars does not collect any payment through the platform itself.</p>
+                  <p className="mt-2">If you have any questions about how the service works, or about any service-related matters, you can contact our team directly through the Messages feature inside the app, or by phone on +268 76295648.</p>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">5. Your responsibilities as a seller</h3>
+                  <p>By posting a listing on Eswatini Cars, you confirm that:</p>
+                  <ul className="list-disc pl-6 mt-2 space-y-1">
+                    <li>You are the legal owner of the vehicle or parts, or you have written authority from the owner to list them for sale.</li>
+                    <li>The vehicle or parts are not stolen, and there is no outstanding finance that would prevent a lawful sale.</li>
+                    <li>The information in your listing (price, year, mileage, condition, etc.) is accurate to the best of your knowledge.</li>
+                    <li>The photographs you upload are of the actual vehicle or parts being sold, and have not been altered to misrepresent the condition.</li>
+                    <li>You will respond promptly to enquiries forwarded to you by our team.</li>
+                    <li>You will deal honestly and in good faith with any buyer introduced through the platform.</li>
+                  </ul>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">6. Your responsibilities as a buyer</h3>
+                  <p>By sending an enquiry or arranging a viewing through Eswatini Cars, you confirm that:</p>
+                  <ul className="list-disc pl-6 mt-2 space-y-1">
+                    <li>You are genuinely interested in purchasing the vehicle or parts you are enquiring about.</li>
+                    <li>You will deal honestly and in good faith with the seller.</li>
+                    <li>You understand that Eswatini Cars does not guarantee the condition, roadworthiness, or legal status of any vehicle, and that you are strongly advised to bring your own qualified mechanic or engineer to inspect any vehicle before finalising a purchase.</li>
+                    <li>You understand that any sale contract is between you and the seller, and that Eswatini Cars is not a party to that contract.</li>
+                  </ul>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">7. Verification, not a guarantee</h3>
+                  <p>Eswatini Cars takes steps to verify listings and to reduce the risk of fraud on the platform. These steps may include checking the seller&apos;s contact details, reviewing listing content, and attending viewings where we are able to do so. However, these steps do not constitute a guarantee that any listing is accurate, that any vehicle is roadworthy, or that any seller is trustworthy.</p>
+                  <p className="mt-2">You acknowledge that Eswatini Cars shall not be held liable for any faults, defects, misrepresentations, or damages arising from a sale conducted between a buyer and a seller, whether or not a representative of our team attended the viewing. All sales are final between the buyer and the seller.</p>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">8. Prohibited conduct</h3>
+                  <p>You agree that you will not:</p>
+                  <ul className="list-disc pl-6 mt-2 space-y-1">
+                    <li>Post a listing for a vehicle or parts that you do not own or do not have authority to sell.</li>
+                    <li>Post a listing for a stolen vehicle, a vehicle with outstanding finance that would prevent a lawful sale, or a vehicle with a tampered VIN.</li>
+                    <li>Provide false, misleading, or inaccurate information in a listing or enquiry.</li>
+                    <li>Use the platform to harass, threaten, or defraud any other user.</li>
+                    <li>Attempt to bypass the platform&apos;s safety features, or to use the platform for any unlawful purpose under the laws of the Kingdom of Eswatini.</li>
+                    <li>Attempt to access another user&apos;s account, or share your own account credentials with anyone else.</li>
+                  </ul>
+                  <p className="mt-2">We reserve the right to remove any listing, suspend any account, and report serious misconduct to the relevant authorities, including the Royal Eswatini Police Service.</p>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">9. User-submitted media</h3>
+                  <p>When you upload photographs or other media to the platform, you grant Eswatini Cars a non-exclusive, royalty-free, worldwide licence to host, display, and process that media for the purpose of operating the platform (including displaying the listing, cross-posting new listings to our Facebook Page, and generating thumbnails).</p>
+                  <p className="mt-2">You confirm that you own the media you upload, or that you have the right to grant this licence, and that the media does not infringe the rights of any third party. You remain the owner of your media at all times.</p>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">10. Limitation of liability</h3>
+                  <p>To the maximum extent permitted by the laws of the Kingdom of Eswatini, Eswatini Cars shall not be liable for any indirect, incidental, special, or consequential damages arising out of or in connection with your use of the platform, including (without limitation) any loss arising from a sale between a buyer and a seller, any inaccuracy in a listing, or any conduct of another user.</p>
+                  <p className="mt-2">This does not affect any rights you may have under the Consumer Protection Act, 2017, or any other applicable law in the Kingdom of Eswatini that cannot be excluded by contract.</p>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">11. Changes to these terms</h3>
+                  <p>We may update these Terms &amp; Conditions from time to time. When we do, we will update the &quot;Last updated&quot; date. We encourage you to review these terms periodically. Your continued use of the platform after any change constitutes your acceptance of the updated terms.</p>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">12. Governing law</h3>
+                  <p>These Terms &amp; Conditions are governed by the laws of the Kingdom of Eswatini. Any dispute arising out of or in connection with these terms, or with your use of the platform, shall be resolved in accordance with the laws of the Kingdom of Eswatini, and the courts of Eswatini shall have jurisdiction.</p>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">13. Contacting us</h3>
+                  <p>If you have any questions about these Terms &amp; Conditions, you can contact us by:</p>
+                  <ul className="list-disc pl-6 mt-2 space-y-1">
+                    <li>Phone / WhatsApp: +268 7629 5648</li>
+                    <li>Through the Messages feature inside the Eswatini Cars app</li>
+                  </ul>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-slate-500 mb-4">Last updated: 30 October 2026</p>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">1. Our commitment to your privacy</h3>
+                  <p>Eswatini Cars respects your privacy. This Privacy Policy explains what personal information we collect, why we collect it, how we use it, who we share it with, and the choices you have. It applies to the Eswatini Cars website, the Android app, and any other way you interact with us.</p>
+                  <p className="mt-2">We are committed to handling your personal information in line with:</p>
+                  <ul className="list-disc pl-6 mt-2 space-y-1">
+                    <li><strong>Section 22 of the Constitution of the Kingdom of Eswatini (2005)</strong>, which protects the right to privacy of the person, the home, and the communication of every person in Eswatini.</li>
+                    <li><strong>The Data Protection Act, 2022</strong> of the Kingdom of Eswatini, which governs the collection, processing, and storage of personal data.</li>
+                    <li>Generally accepted best practice for online platforms of this kind.</li>
+                  </ul>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">2. What information we collect</h3>
+                  <p className="font-semibold text-white mt-3">2.1 Information you give us when you register</p>
+                  <ul className="list-disc pl-6 mt-2 space-y-1">
+                    <li><strong>Name</strong> — so we can address you properly and so the admin team knows who they are talking to.</li>
+                    <li><strong>Username</strong> — a short identifier (3-20 characters) so we can identify you in messages to admin. If you don&apos;t choose one, we generate one automatically from the first part of your email address.</li>
+                    <li><strong>Email address</strong> — used to log in, to recover your account, and to send you notifications about your enquiries and listings.</li>
+                    <li><strong>Phone number</strong> — used for phone verification (where enabled), and so our team can call you back when you enquire about a vehicle. Your phone number is <strong>never published</strong> on any listing — buyers reach you through us first.</li>
+                    <li><strong>Password</strong> — stored as a one-way hash (bcrypt) so that even we cannot see the plain-text version. We can never send you your password; we can only help you reset it.</li>
+                  </ul>
+
+                  <p className="font-semibold text-white mt-3">2.2 Information you give us when you post a listing</p>
+                  <ul className="list-disc pl-6 mt-2 space-y-1">
+                    <li><strong>Seller name and seller phone</strong> — shown only to the admin team, never published on the listing.</li>
+                    <li><strong>Seller email</strong> (optional) — used to attribute the listing to your account so you can edit or delete it later.</li>
+                    <li><strong>Vehicle details</strong> — make, model, year, price, mileage, colour, region, fuel type, transmission, and description. These are publicly visible on the listing.</li>
+                    <li><strong>Vehicle photographs</strong> — uploaded to our cloud image service (Cloudinary) and displayed on the listing.</li>
+                  </ul>
+
+                  <p className="font-semibold text-white mt-3">2.3 Information you give us when you message admin</p>
+                  <ul className="list-disc pl-6 mt-2 space-y-1">
+                    <li><strong>Subject and message text</strong> — the content of messages you send to the admin team through the Messages feature. This is visible to the admin team and to you, and is stored so that you can see the full conversation thread.</li>
+                  </ul>
+
+                  <p className="font-semibold text-white mt-3">2.4 Information we collect automatically</p>
+                  <ul className="list-disc pl-6 mt-2 space-y-1">
+                    <li><strong>Session cookie</strong> — a small, httpOnly cookie that keeps you logged in between page loads. It does not track you across other websites. It expires after 30 days of inactivity.</li>
+                    <li><strong>Listing view counts</strong> — every time someone views a listing, we increment a counter. This is just a number, not linked to any individual user.</li>
+                    <li><strong>Technical logs</strong> — server logs that include the time of a request, the type of device, and the country the request came from. These are used for security and to fix bugs. They are kept for a maximum of 30 days.</li>
+                  </ul>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">3. Why we collect each piece of information</h3>
+                  <p>We only collect information that we genuinely need to operate the platform. Specifically:</p>
+                  <ul className="list-disc pl-6 mt-2 space-y-1">
+                    <li><strong>To connect buyers and sellers</strong> — we need your contact details so we can forward enquiries and arrange viewings.</li>
+                    <li><strong>To verify listings and reduce fraud</strong> — we use your phone number and listing details to check that listings are genuine.</li>
+                    <li><strong>To let you manage your listings and messages</strong> — we link listings and messages to your account so you can edit, delete, or reply to them.</li>
+                    <li><strong>To notify you</strong> — we send you email notifications when someone enquires about your listing, when the admin team replies to your message, and (for buyers) when a viewing is arranged.</li>
+                    <li><strong>To keep the platform secure</strong> — we use session cookies and technical logs to detect and prevent abuse.</li>
+                  </ul>
+                  <p className="mt-2">We do <strong>not</strong> collect your location via GPS, we do <strong>not</strong> read your contacts or messages, and we do <strong>not</strong> build a profile of you for advertising. We do not sell your personal information to anyone.</p>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">4. Phone number verification</h3>
+                  <p>When you register, we may send a one-time code (OTP) to your phone number via SMS to verify that the number belongs to you. This service is provided by Google Firebase Phone Authentication. The phone number is passed to Firebase for the sole purpose of sending the SMS, and Firebase stores a hashed token (not your plain phone number) to prevent abuse.</p>
+                  <p className="mt-2">You can choose to skip phone verification — you will still be able to register, list vehicles, and message admin, but your account will not be marked as phone-verified.</p>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">5. How we handle your photographs and other media</h3>
+                  <p>When you upload photographs of a vehicle, those photographs are:</p>
+                  <ul className="list-disc pl-6 mt-2 space-y-1">
+                    <li>Compressed and resized in your browser before upload, so that they load quickly.</li>
+                    <li>Uploaded to <strong>Cloudinary</strong>, a cloud-based image service. Cloudinary stores the photographs on its servers and delivers them to viewers via its global CDN.</li>
+                    <li>Displayed on your listing, and (for new listings) cross-posted to the <strong>Eswatini Cars Facebook Page</strong> along with the vehicle details.</li>
+                    <li>Deleted from Cloudinary when you delete the corresponding listing from the platform.</li>
+                  </ul>
+                  <p className="mt-2">You grant Eswatini Cars a non-exclusive, royalty-free, worldwide licence to host and display your media for the purpose of operating the platform. You remain the owner of your media at all times, and you can remove it at any time by deleting the listing.</p>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">6. Who we share your information with</h3>
+                  <p>We share your information only with the following service providers, and only as needed to operate the platform:</p>
+                  <ul className="list-disc pl-6 mt-2 space-y-1">
+                    <li><strong>Turso (database hosting)</strong> — stores your account, listings, enquiries, and messages. Hosted in the EU (Ireland).</li>
+                    <li><strong>Vercel (web hosting)</strong> — hosts the Eswatini Cars website and API.</li>
+                    <li><strong>Cloudinary (image hosting)</strong> — stores and serves the photographs you upload.</li>
+                    <li><strong>Google Firebase (phone verification)</strong> — used only for sending OTP SMS during registration.</li>
+                    <li><strong>Resend (email notifications)</strong> — used to send you enquiry and message notifications.</li>
+                    <li><strong>Meta / Facebook (cross-posting)</strong> — when a new listing is created, the listing details and main photograph are posted to the Eswatini Cars Facebook Page.</li>
+                  </ul>
+                  <p className="mt-2">We do <strong>not</strong> share your information with any other third party, except where required by law (for example, a lawful request from the Royal Eswatini Police Service or a court order from the courts of Eswatini), or where we believe in good faith that disclosure is necessary to prevent fraud, protect the safety of any person, or comply with a legal obligation.</p>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">7. Your phone number is never published</h3>
+                  <p>One of the most important privacy protections on Eswatini Cars is that your phone number is <strong>never published</strong> on any listing. When a buyer is interested in a vehicle, they send an enquiry to the admin team (not to the seller directly). The admin team then contacts the seller to arrange a viewing. This means buyers never see the seller&apos;s phone number until a viewing has been arranged, and sellers never receive unsolicited calls from strangers.</p>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">8. How long we keep your information</h3>
+                  <ul className="list-disc pl-6 mt-2 space-y-1">
+                    <li><strong>Account information</strong> — kept for as long as your account is active. If you delete your account, your information is removed within 30 days.</li>
+                    <li><strong>Listings</strong> — kept for as long as the listing is active. When you delete a listing, it is removed from the database, and the associated photographs are deleted from Cloudinary.</li>
+                    <li><strong>Enquiries and messages</strong> — kept for as long as the related listing exists, and for 90 days afterwards in case of a dispute. After that, they are automatically deleted.</li>
+                    <li><strong>Technical logs</strong> — kept for a maximum of 30 days, then automatically deleted.</li>
+                  </ul>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">9. Your rights under Eswatini law</h3>
+                  <p>Under Section 22 of the Constitution of the Kingdom of Eswatini (2005) and the Data Protection Act, 2022, you have the right to:</p>
+                  <ul className="list-disc pl-6 mt-2 space-y-1">
+                    <li><strong>Access</strong> — request a copy of the personal information we hold about you.</li>
+                    <li><strong>Correction</strong> — ask us to correct any information that is inaccurate or out of date.</li>
+                    <li><strong>Deletion</strong> — ask us to delete your personal information (for example, by deleting your account through the Profile Settings page).</li>
+                    <li><strong>Withdrawal of consent</strong> — withdraw your consent to our processing of your information at any time (this may mean we can no longer provide the service to you).</li>
+                    <li><strong>Lodge a complaint</strong> — with the relevant data protection authority in Eswatini if you believe we have mishandled your information.</li>
+                  </ul>
+                  <p className="mt-2">To exercise any of these rights, please contact us through the Messages feature in the app, or by phone on +268 7629 5648. We will respond to your request within 30 days.</p>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">10. Security</h3>
+                  <p>We take reasonable technical and organisational measures to protect your information, including:</p>
+                  <ul className="list-disc pl-6 mt-2 space-y-1">
+                    <li>Storing passwords as one-way hashes (bcrypt) so that even we cannot see them.</li>
+                    <li>Using encrypted (HTTPS) connections for all data in transit.</li>
+                    <li>Using httpOnly session cookies so they cannot be read by JavaScript.</li>
+                    <li>Restricting database access to the application only.</li>
+                    <li>Not collecting sensitive information we do not need (for example, we do not collect ID numbers, banking details, or home addresses).</li>
+                  </ul>
+                  <p className="mt-2">No system is 100% secure. If we ever become aware of a data breach affecting your personal information, we will notify you and the relevant authorities as required by the Data Protection Act, 2022.</p>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">11. Children&apos;s privacy</h3>
+                  <p>Eswatini Cars is not directed at children under 18, and we do not knowingly collect personal information from anyone under 18. If you believe we have collected information from a person under 18, please contact us and we will delete it.</p>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">12. Changes to this policy</h3>
+                  <p>We may update this Privacy Policy from time to time. When we do, we will update the &quot;Last updated&quot; date. We encourage you to review this policy periodically. If we make a material change to how we handle your information, we will notify you through the app or by email before the change takes effect.</p>
+
+                  <h3 className="text-base font-semibold text-white mt-4 mb-2">13. Contacting us</h3>
+                  <p>If you have any questions about this Privacy Policy, or about your personal information, you can contact us by:</p>
+                  <ul className="list-disc pl-6 mt-2 space-y-1">
+                    <li>Phone / WhatsApp: +268 7629 5648</li>
+                    <li>Through the Messages feature inside the Eswatini Cars app</li>
+                  </ul>
+                </>
+              )}
+            </div>
+
+            {/* Modal footer with Close button */}
+            <div className="p-4 border-t border-white/10 bg-[#0f1f4a] rounded-b-2xl sticky bottom-0">
+              <Button
+                className="w-full bg-sky-500 text-white hover:bg-sky-400"
+                onClick={() => setLegalModal(null)}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ADD ADMIN DIALOG */}
       <Dialog open={showAddAdmin} onOpenChange={setShowAddAdmin}>
