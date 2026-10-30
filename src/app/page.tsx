@@ -3257,10 +3257,10 @@ export default function Home() {
 
       {/* REGISTER DIALOG — 2-step: form → OTP verification (Firebase phone auth) */}
       <Dialog open={showRegister} onOpenChange={(o) => { setShowRegister(o); if (!o) { setPhoneVerifyStep('form'); setOtpCode(''); setConfirmationResult(null) } }}>
-        <DialogContent>
+        <DialogContent className="text-white">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><UserPlus className="w-5 h-5 text-sky-500" /> Register {phoneVerifyStep === 'otp' && '— Verify Phone'}</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-slate-300">
               {phoneVerifyStep === 'otp'
                 ? 'Enter the 6-digit code we sent to your phone to complete verification.'
                 : 'Create a free account to save favorites and message admin.'}
@@ -3269,7 +3269,7 @@ export default function Home() {
           {phoneVerifyStep === 'otp' ? (
             <div className="space-y-3">
               <div>
-                <Label>Verification code *</Label>
+                <Label className="text-white">Verification code *</Label>
                 <Input
                   type="text"
                   inputMode="numeric"
@@ -3277,9 +3277,9 @@ export default function Home() {
                   value={otpCode}
                   onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   placeholder="123456"
-                  className="text-center text-2xl tracking-[0.5em] font-mono"
+                  className="text-center text-2xl tracking-[0.5em] font-mono text-white"
                 />
-                <p className="text-[10px] text-slate-500 mt-1">Enter the 6-digit code from the SMS we sent you. The code expires in 2 minutes.</p>
+                <p className="text-[10px] text-slate-400 mt-1">Enter the 6-digit code from the SMS we sent you. The code expires in 2 minutes.</p>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => { setPhoneVerifyStep('form'); setOtpCode(''); setConfirmationResult(null) }}>Back</Button>
@@ -3288,15 +3288,15 @@ export default function Home() {
             </div>
           ) : (
             <div className="space-y-3">
-              <div><Label>Name *</Label><Input value={registerForm.name} onChange={e => setRegisterForm({...registerForm, name: e.target.value})} placeholder="John Dlamini" /></div>
+              <div><Label className="text-white">Name *</Label><Input className="text-white" value={registerForm.name} onChange={e => setRegisterForm({...registerForm, name: e.target.value})} placeholder="John Dlamini" /></div>
               <div>
-                <Label>Username <span className="text-slate-500 font-normal">(optional)</span></Label>
-                <Input value={registerForm.username} onChange={e => setRegisterForm({...registerForm, username: e.target.value.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase().slice(0, 20)})} placeholder="Auto-generated from email if blank" />
-                <p className="text-[10px] text-slate-500 mt-1">3-20 chars: letters, numbers, underscores. Used to identify you in messages to admin.</p>
+                <Label className="text-white">Username <span className="text-slate-400 font-normal">(optional)</span></Label>
+                <Input className="text-white" value={registerForm.username} onChange={e => setRegisterForm({...registerForm, username: e.target.value.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase().slice(0, 20)})} placeholder="Auto-generated from email if blank" />
+                <p className="text-[10px] text-slate-400 mt-1">3-20 chars: letters, numbers, underscores. Used to identify you in messages to admin.</p>
               </div>
-              <div><Label>Email *</Label><Input type="email" value={registerForm.email} onChange={e => setRegisterForm({...registerForm, email: e.target.value})} placeholder="john@email.com" /></div>
-              <div><Label>Password * (min 8 characters)</Label><Input type="password" value={registerForm.password} onChange={e => setRegisterForm({...registerForm, password: e.target.value})} placeholder="••••••••" minLength={8} /></div>
-              <div><Label>Phone *</Label><Input value={registerForm.phone} onChange={e => setRegisterForm({...registerForm, phone: e.target.value})} placeholder="+268 7XXX XXXX" /></div>
+              <div><Label className="text-white">Email *</Label><Input className="text-white" type="email" value={registerForm.email} onChange={e => setRegisterForm({...registerForm, email: e.target.value})} placeholder="john@email.com" /></div>
+              <div><Label className="text-white">Password * (min 8 characters)</Label><Input className="text-white" type="password" value={registerForm.password} onChange={e => setRegisterForm({...registerForm, password: e.target.value})} placeholder="••••••••" minLength={8} /></div>
+              <div><Label className="text-white">Phone *</Label><Input className="text-white" value={registerForm.phone} onChange={e => setRegisterForm({...registerForm, phone: e.target.value})} placeholder="+268 7XXX XXXX" /></div>
 
               {/*
                 Terms & Conditions agreement checkbox.
