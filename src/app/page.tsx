@@ -3391,7 +3391,13 @@ export default function Home() {
         inside another Dialog. A plain fixed-position div with high z-index
         is simpler and more reliable for this nested-overlay use case.
       */}
-      {legalModal && (
+      {/* Use createPortal to render the legal modal at document.body level.
+          This BYPASSES the Radix Dialog's focus trap, which was intercepting
+          all clicks inside the modal and making it unresponsive (the modal
+          appeared but no buttons worked — the user had to force-close the app).
+          By portaling to document.body, the modal is completely independent
+          of the Radix Dialog's focus management, so all buttons work normally. */}
+      {legalModal && typeof document !== 'undefined' && createPortal(
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
           onClick={() => setLegalModal(null)} // click backdrop to close
@@ -3644,7 +3650,8 @@ export default function Home() {
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ADD ADMIN DIALOG */}
