@@ -55,6 +55,11 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  // colorScheme: 'dark' tells the browser to render the page in dark mode
+  // from the very first frame — BEFORE any CSS loads. This is what eliminates
+  // the white flash during page load. The browser uses a dark background for
+  // the initial paint instead of its default white.
+  colorScheme: 'dark',
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#0a1834" },
     { media: "(prefers-color-scheme: dark)", color: "#0a1834" },
@@ -72,8 +77,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning style={{ backgroundColor: '#0a1834' }}>
       <head>
+        {/*
+          COLOR-SCHEME META TAG — THE KEY to eliminating the white flash.
+          This MUST be the very first element in <head>. It tells the browser
+          "this page is dark mode" BEFORE any CSS is parsed. Without it, the
+          browser defaults to light mode (white background) for the initial
+          paint — that's the fraction-of-a-second white flash the user sees.
+
+          With this tag, the browser uses a dark background for the initial
+          paint (before CSS loads), matching our navy theme seamlessly.
+        */}
+        <meta name="color-scheme" content="dark" />
         {/* PWA: Windows tile color */}
         <meta name="msapplication-TileColor" content="#0a1834" />
         <meta name="msapplication-tap-highlight" content="no" />

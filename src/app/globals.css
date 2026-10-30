@@ -44,7 +44,12 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
+  /* Background is set to navy (#0a1834) instead of the default white.
+     This ensures the body background matches our app theme from the very
+     first CSS paint — no white flash when Tailwind CSS loads and applies
+     the `bg-background` class. The app is a dark-themed marketplace, so
+     white was never the right default anyway. */
+  --background: #0a1834;
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
