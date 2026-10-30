@@ -166,59 +166,21 @@ export default function RootLayout({
             #initial-loader .loader-spinner { animation: none; }
           }
         `}} />
-        {/* Register service worker + remove initial loader.
-            Both scripts are in the <head> because Next.js executes inline scripts
-            in the <head> reliably. Scripts in the <body> using dangerouslySetInnerHTML
-            can get serialized as RSC payload data instead of executing. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              // Register service worker
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js').then(function(registration) {
-                    console.log('PWA SW registered:', registration.scope);
-                  }).catch(function(err) {
-                    console.log('PWA SW registration failed:', err);
-                  });
-                });
-              }
+        {/*
+          Loader + Service Worker script.
+          Loaded from /public/loader.js as a synchronous <script src> tag.
+          We use a separate file instead of dangerouslySetInnerHTML because
+          Next.js App Router serializes inline scripts as RSC payload data
+          (self.__next_f.push) instead of rendering them as executable <script>
+          tags. A <script src="..."> tag is always rendered as raw HTML, so it
+          executes reliably.
 
-              // Remove the initial loading screen once the page is fully loaded.
-              // The loader div is in <body> (rendered before React hydrates) and
-              // shows a branded spinner. We remove it after 'load' fires + 300ms
-              // delay (gives React time to hydrate and render the actual app).
-              // Fail-safe: remove after 5s regardless, so users aren't stuck.
-              (function() {
-                var loader = document.getElementById('initial-loader');
-                if (!loader) return;
-
-                function removeLoader() {
-                  var l = document.getElementById('initial-loader');
-                  if (l && l.parentNode) {
-                    l.style.transition = 'opacity 0.3s ease-out';
-                    l.style.opacity = '0';
-                    setTimeout(function() {
-                      if (l.parentNode) l.parentNode.removeChild(l);
-                    }, 300);
-                  }
-                }
-
-                window.addEventListener('load', function() {
-                  setTimeout(removeLoader, 300);
-                });
-
-                // Fail-safe: remove after 5s no matter what
-                setTimeout(removeLoader, 5000);
-
-                // If DOM is already complete, remove after short delay
-                if (document.readyState === 'complete') {
-                  setTimeout(removeLoader, 300);
-                }
-              })();
-            `,
-          }}
-        />
+          The script:
+          1. Registers the PWA service worker
+          2. Removes the #initial-loader div after the page loads
+             (the loader shows a branded spinner while React hydrates)
+        */}
+        <script src="/loader.js" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
