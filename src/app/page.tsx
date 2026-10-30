@@ -3319,7 +3319,16 @@ export default function Home() {
                   I agree to the{' '}
                   <button
                     type="button"
-                    onClick={(e) => { e.preventDefault(); setLegalModal('terms') }}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      // Close the registration dialog FIRST, then open the
+                      // legal modal as a standalone dialog. This avoids the
+                      // Radix focus-trap conflict that freezes nested modals.
+                      // Form state (registerForm, agreedToTerms, etc.) is in
+                      // React state, so it survives the close/reopen cycle.
+                      setShowRegister(false)
+                      setLegalModal('terms')
+                    }}
                     className="text-sky-400 hover:text-sky-300 underline inline"
                   >
                     Terms &amp; Conditions
@@ -3327,7 +3336,11 @@ export default function Home() {
                   {' '}and{' '}
                   <button
                     type="button"
-                    onClick={(e) => { e.preventDefault(); setLegalModal('privacy') }}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      setShowRegister(false)
+                      setLegalModal('privacy')
+                    }}
                     className="text-sky-400 hover:text-sky-300 underline inline"
                   >
                     Privacy Policy
@@ -3391,39 +3404,38 @@ export default function Home() {
         inside another Dialog. A plain fixed-position div with high z-index
         is simpler and more reliable for this nested-overlay use case.
       */}
-      {/* Use createPortal to render the legal modal at document.body level.
-          This BYPASSES the Radix Dialog's focus trap, which was intercepting
-          all clicks inside the modal and making it unresponsive (the modal
-          appeared but no buttons worked — the user had to force-close the app).
-          By portaling to document.body, the modal is completely independent
-          of the Radix Dialog's focus management, so all buttons work normally. */}
-      {legalModal && typeof document !== 'undefined' && createPortal(
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-          onClick={() => setLegalModal(null)} // click backdrop to close
-        >
-          <div
-            className="bg-[#0a1834] border border-white/10 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col"
-            onClick={(e) => e.stopPropagation()} // don't close when clicking inside
-          >
-            {/* Modal header — sticky so it stays visible while scrolling */}
-            <div className="flex items-center justify-between p-4 border-b border-white/10 bg-[#0f1f4a] rounded-t-2xl sticky top-0 z-10">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <FileText className="w-5 h-5 text-sky-500" />
-                {legalModal === 'terms' ? 'Terms & Conditions' : 'Privacy Policy'}
-              </h2>
-              <button
-                onClick={() => setLegalModal(null)}
-                className="bg-white/10 hover:bg-white/20 rounded-full w-8 h-8 flex items-center justify-center text-white transition-colors"
-                aria-label="Close"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      {/* LEGAL MODAL — standalone Dialog for T&C / Privacy Policy.
+          Opens when the user taps "Terms & Conditions" or "Privacy Policy"
+          in the registration form. The registration dialog is closed FIRST
+          (setShowRegister(false)) so there's only ONE dialog open at a time —
+          this completely avoids the Radix focus-trap conflict that froze
+          nested modals on mobile.
 
-            {/* Scrollable content area */}
-            <div className="overflow-y-auto p-5 text-sm text-slate-300 leading-relaxed flex-1">
-              {legalModal === 'terms' ? (
+          When this dialog closes, the registration dialog reopens automatically
+          (setShowRegister(true)), with all form state preserved because it's
+          in React state (registerForm, agreedToTerms, phoneVerifyStep, etc.),
+          not DOM state. */}
+      <Dialog
+        open={!!legalModal}
+        onOpenChange={(open) => {
+          if (!open) {
+            setLegalModal(null)
+            // Reopen the registration dialog — form state is preserved
+            // because it lives in React state, not in the DOM.
+            setShowRegister(true)
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-sky-500" />
+              {legalModal === 'terms' ? 'Terms & Conditions' : 'Privacy Policy'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="text-sm text-slate-600 dark:text-slate-400 space-y-3 leading-relaxed">
+            <p className="text-xs text-slate-500">Last updated: 30 October 2026</p>
+{legalModal === 'terms' ? (
                 <>
                   <p className="text-xs text-slate-500 mb-4">Last updated: 30 October 2026</p>
 
@@ -3638,21 +3650,22 @@ export default function Home() {
                   </ul>
                 </>
               )}
-            </div>
 
-            {/* Modal footer with Close button */}
-            <div className="p-4 border-t border-white/10 bg-[#0f1f4a] rounded-b-2xl sticky bottom-0">
+
+          </div>
+            <div className="flex justify-end pt-4">
               <Button
-                className="w-full bg-sky-500 text-white hover:bg-sky-400"
-                onClick={() => setLegalModal(null)}
+                className="bg-sky-500 text-white hover:bg-sky-400"
+                onClick={() => {
+                  setLegalModal(null)
+                  setShowRegister(true)
+                }}
               >
                 Close
               </Button>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+        </DialogContent>
+      </Dialog>
 
       {/* ADD ADMIN DIALOG */}
       <Dialog open={showAddAdmin} onOpenChange={setShowAddAdmin}>
