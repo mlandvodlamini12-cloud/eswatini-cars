@@ -1,5 +1,5 @@
 import { Metadata } from 'next'
-import Link from 'next/link'
+
 
 export const metadata: Metadata = {
   title: 'Privacy Policy — Eswatini Cars',
@@ -10,7 +10,7 @@ export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-[#0a1834] text-slate-200">
       <div className="max-w-3xl mx-auto px-4 py-10 md:py-16">
-        <Link href="/" className="text-sky-400 hover:text-sky-300 text-sm mb-6 inline-block">← Back to Eswatini Cars</Link>
+        <a href="/" className="text-sky-400 hover:text-sky-300 text-sm mb-6 inline-block">← Back to Eswatini Cars</a>
 
         <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">Privacy Policy</h1>
         <p className="text-sm text-slate-400 mb-8">Last updated: 30 October 2026</p>
@@ -228,7 +228,7 @@ export default function PrivacyPage() {
 
         <div className="mt-12 pt-6 border-t border-white/10 text-xs text-slate-500">
           <p>
-            This Privacy Policy is intended to be read together with our <Link href="/terms" className="text-sky-400 hover:text-sky-300 underline">Terms &amp; Conditions</Link>.
+            This Privacy Policy is intended to be read together with our <a href="/terms" className="text-sky-400 hover:text-sky-300 underline">Terms &amp; Conditions</a>.
             Both documents reflect our commitment to handling your information in line with the Constitution
             of the Kingdom of Eswatini (2005) and the Data Protection Act, 2022.
           </p>

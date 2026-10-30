@@ -1,5 +1,5 @@
 import { Metadata } from 'next'
-import Link from 'next/link'
+
 
 export const metadata: Metadata = {
   title: 'Terms & Conditions — Eswatini Cars',
@@ -10,7 +10,7 @@ export default function TermsPage() {
   return (
     <div className="min-h-screen bg-[#0a1834] text-slate-200">
       <div className="max-w-3xl mx-auto px-4 py-10 md:py-16">
-        <Link href="/" className="text-sky-400 hover:text-sky-300 text-sm mb-6 inline-block">← Back to Eswatini Cars</Link>
+        <a href="/" className="text-sky-400 hover:text-sky-300 text-sm mb-6 inline-block">← Back to Eswatini Cars</a>
 
         <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">Terms &amp; Conditions</h1>
         <p className="text-sm text-slate-400 mb-8">Last updated: 30 October 2026</p>
@@ -42,7 +42,7 @@ export default function TermsPage() {
             <ul className="list-disc pl-6 mt-3 space-y-1.5">
               <li>You are at least 18 years old.</li>
               <li>You are legally able to enter into a binding agreement in the Kingdom of Eswatini.</li>
-              <li>You have read, understood, and agree to be bound by these Terms &amp; Conditions and our <Link href="/privacy" className="text-sky-400 hover:text-sky-300 underline">Privacy Policy</Link>.</li>
+              <li>You have read, understood, and agree to be bound by these Terms &amp; Conditions and our <a href="/privacy" className="text-sky-400 hover:text-sky-300 underline">Privacy Policy</a>.</li>
             </ul>
             <p className="mt-3">
               If you do not agree with any part of these terms, please do not use the platform.
@@ -156,7 +156,7 @@ export default function TermsPage() {
               You confirm that you own the media you upload, or that you have the right to grant this licence,
               and that the media does not infringe the rights of any third party. You remain the owner of your
               media at all times. For more detail on how we handle your media and other personal information,
-              please see our <Link href="/privacy" className="text-sky-400 hover:text-sky-300 underline">Privacy Policy</Link>.
+              please see our <a href="/privacy" className="text-sky-400 hover:text-sky-300 underline">Privacy Policy</a>.
             </p>
           </section>
 
@@ -208,7 +208,7 @@ export default function TermsPage() {
         <div className="mt-12 pt-6 border-t border-white/10 text-xs text-slate-500">
           <p>
             Eswatini Cars is a managed vehicle marketplace operating in the Kingdom of Eswatini.
-            These Terms &amp; Conditions are intended to be read together with our <Link href="/privacy" className="text-sky-400 hover:text-sky-300 underline">Privacy Policy</Link>.
+            These Terms &amp; Conditions are intended to be read together with our <a href="/privacy" className="text-sky-400 hover:text-sky-300 underline">Privacy Policy</a>.
           </p>
         </div>
       </div>
