@@ -1859,7 +1859,7 @@ export default function Home() {
                   <div className="mt-3 bg-slate-900/80 backdrop-blur-md rounded-3xl p-4 md:p-5 grid grid-cols-1 md:grid-cols-12 gap-3 shadow-lg border border-white/10 animate-[fade-in_0.3s_ease-out]">
                     <div className="md:col-span-5 flex flex-col gap-1">
                       <label className="text-[10px] uppercase tracking-wide text-sky-300 font-semibold">Search keyword</label>
-                      <Input placeholder="e.g. Toyota, Hilux, White..." value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && fetchListings()} className="rounded-xl bg-white/10 border-white/20 text-white placeholder:text-slate-400" />
+                      <Input className="text-white" placeholder="e.g. Toyota, Hilux, White..." value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && fetchListings()} className="rounded-xl bg-white/10 border-white/20 text-white placeholder:text-slate-400" />
                     </div>
                     <div className="md:col-span-2 flex flex-col gap-1">
                       <label className="text-[10px] uppercase tracking-wide text-sky-300 font-semibold">Vehicle Type</label>
@@ -1893,11 +1893,11 @@ export default function Home() {
                       </div>
                       <div className="flex items-center gap-1">
                         <label className="text-[10px] uppercase tracking-wide text-sky-300 font-semibold">Min price</label>
-                        <Input placeholder="0" type="number" value={minPrice} onChange={e => setMinPrice(e.target.value)} className="bg-white/10 border-white/20 text-white placeholder:text-slate-400 w-28 rounded-full" />
+                        <Input className="text-white" placeholder="0" type="number" value={minPrice} onChange={e => setMinPrice(e.target.value)} className="bg-white/10 border-white/20 text-white placeholder:text-slate-400 w-28 rounded-full" />
                       </div>
                       <div className="flex items-center gap-1">
                         <label className="text-[10px] uppercase tracking-wide text-sky-300 font-semibold">Max price</label>
-                        <Input placeholder="Any" type="number" value={maxPrice} onChange={e => setMaxPrice(e.target.value)} className="bg-white/10 border-white/20 text-white placeholder:text-slate-400 w-28 rounded-full" />
+                        <Input className="text-white" placeholder="Any" type="number" value={maxPrice} onChange={e => setMaxPrice(e.target.value)} className="bg-white/10 border-white/20 text-white placeholder:text-slate-400 w-28 rounded-full" />
                       </div>
                       <Button size="sm" variant="ghost" className="text-sky-300 hover:bg-white/10 rounded-full" onClick={() => { setQ(''); setType('all'); setFuel('all'); setTransmission('all'); setRegion('all'); setMinPrice(''); setMaxPrice(''); }}>
                         Clear all
@@ -2468,12 +2468,12 @@ export default function Home() {
 
       {/* LISTING DETAIL MODAL */}
       <Dialog open={!!listingDetail} onOpenChange={(o) => !o && setListingDetail(null)}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" onPointerDownOutside={(e) => { if (lightbox) e.preventDefault() }} onInteractOutside={(e) => { if (lightbox) e.preventDefault() }}>
+        <DialogContent className="text-white max-w-3xl max-h-[90vh] overflow-y-auto" onPointerDownOutside={(e) => { if (lightbox) e.preventDefault() }} onInteractOutside={(e) => { if (lightbox) e.preventDefault() }}>
           {listingDetail && (
             <>
               <DialogHeader>
                 <DialogTitle className="text-xl">{listingDetail.make} {listingDetail.model}</DialogTitle>
-                <DialogDescription>{listingDetail.year} · {listingDetail.region}</DialogDescription>
+                <DialogDescription className="text-slate-300">{listingDetail.year} · {listingDetail.region}</DialogDescription>
               </DialogHeader>
               {/* Main image + thumbnail gallery */}
               <ListingGallery images={listingDetail.imageUrl ? listingDetail.imageUrl.split('|').filter(Boolean) : []} make={listingDetail.make} model={listingDetail.model} />
@@ -2541,7 +2541,7 @@ export default function Home() {
         <DialogContent onPointerDownOutside={(e) => { if (lightbox) e.preventDefault() }} onInteractOutside={(e) => { if (lightbox) e.preventDefault() }}>
           <DialogHeader>
             <DialogTitle>Enquire about this vehicle</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-slate-300">
               Your message goes directly to the ESWATINI CARS team. We verify the listing, then call you back to arrange a viewing.
             </DialogDescription>
           </DialogHeader>
@@ -2556,11 +2556,11 @@ export default function Home() {
             <div className="space-y-3">
               <div>
                 <Label htmlFor="enq-name">Your name *</Label>
-                <Input id="enq-name" value={enqName} onChange={e => setEnqName(e.target.value)} placeholder="John Dlamini" />
+                <Input className="text-white" id="enq-name" value={enqName} onChange={e => setEnqName(e.target.value)} placeholder="John Dlamini" />
               </div>
               <div>
                 <Label htmlFor="enq-phone">Your phone number *</Label>
-                <Input id="enq-phone" value={enqPhone} onChange={e => setEnqPhone(e.target.value)} placeholder="+268 7XXX XXXX" />
+                <Input className="text-white" id="enq-phone" value={enqPhone} onChange={e => setEnqPhone(e.target.value)} placeholder="+268 7XXX XXXX" />
               </div>
               <div>
                 <Label htmlFor="enq-msg">Message</Label>
@@ -2592,10 +2592,10 @@ export default function Home() {
 
       {/* SELL DIALOG (also used for editing — title changes based on mode) */}
       <Dialog open={sellOpen} onOpenChange={(o) => { setSellOpen(o); if (!o) setEditingListing(null) }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" onPointerDownOutside={(e) => { if (lightbox) e.preventDefault() }} onInteractOutside={(e) => { if (lightbox) e.preventDefault() }}>
+        <DialogContent className="text-white max-w-2xl max-h-[90vh] overflow-y-auto" onPointerDownOutside={(e) => { if (lightbox) e.preventDefault() }} onInteractOutside={(e) => { if (lightbox) e.preventDefault() }}>
           <DialogHeader>
             <DialogTitle>{editingListing ? 'Edit your listing' : 'List your vehicle for free'}</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-slate-300">
               {editingListing
                 ? 'Update the details below. Changes go live immediately across all apps.'
                 : 'Fill in the details. Listing goes live immediately across all apps.'}
@@ -2625,23 +2625,23 @@ export default function Home() {
               </div>
               <div>
                 <Label className="text-xs">Make *</Label>
-                <Input value={sellForm.make} onChange={e => setSellForm({ ...sellForm, make: e.target.value })} placeholder="Toyota" />
+                <Input className="text-white" value={sellForm.make} onChange={e => setSellForm({ ...sellForm, make: e.target.value })} placeholder="Toyota" />
               </div>
               <div>
                 <Label className="text-xs">Model *</Label>
-                <Input value={sellForm.model} onChange={e => setSellForm({ ...sellForm, model: e.target.value })} placeholder="Hilux 2.4 GD-6" />
+                <Input className="text-white" value={sellForm.model} onChange={e => setSellForm({ ...sellForm, model: e.target.value })} placeholder="Hilux 2.4 GD-6" />
               </div>
               <div>
                 <Label className="text-xs">Year *</Label>
-                <Input type="number" value={sellForm.year} onChange={e => setSellForm({ ...sellForm, year: e.target.value })} placeholder="2020" />
+                <Input className="text-white" type="number" value={sellForm.year} onChange={e => setSellForm({ ...sellForm, year: e.target.value })} placeholder="2020" />
               </div>
               <div>
                 <Label className="text-xs">Price (E) *</Label>
-                <Input type="number" value={sellForm.price} onChange={e => setSellForm({ ...sellForm, price: e.target.value })} placeholder="350000" />
+                <Input className="text-white" type="number" value={sellForm.price} onChange={e => setSellForm({ ...sellForm, price: e.target.value })} placeholder="350000" />
               </div>
               <div>
                 <Label className="text-xs">Mileage (km)</Label>
-                <Input type="number" value={sellForm.mileage} onChange={e => setSellForm({ ...sellForm, mileage: e.target.value })} placeholder="85000" />
+                <Input className="text-white" type="number" value={sellForm.mileage} onChange={e => setSellForm({ ...sellForm, mileage: e.target.value })} placeholder="85000" />
               </div>
               <div>
                 <Label className="text-xs">Fuel type</Label>
@@ -2663,7 +2663,7 @@ export default function Home() {
               </div>
               <div>
                 <Label className="text-xs">Color</Label>
-                <Input value={sellForm.color} onChange={e => setSellForm({ ...sellForm, color: e.target.value })} placeholder="White" />
+                <Input className="text-white" value={sellForm.color} onChange={e => setSellForm({ ...sellForm, color: e.target.value })} placeholder="White" />
               </div>
               <div>
                 <Label className="text-xs">Region</Label>
@@ -2731,7 +2731,7 @@ export default function Home() {
                   {sellForm.imageUrl ? `${sellForm.imageUrl.split('|').filter(Boolean).length} / 8 photos uploaded` : 'No photos yet'}
                 </div>
                 <Input
-                  value={sellForm.imageUrl.startsWith('data:') ? '' : sellForm.imageUrl}
+ className="text-white"                  value={sellForm.imageUrl.startsWith('data:') ? '' : sellForm.imageUrl}
                   onChange={e => setSellForm({ ...sellForm, imageUrl: e.target.value })}
                   placeholder="Or paste image URLs (comma-separated)"
                   className="mt-2"
@@ -2744,10 +2744,10 @@ export default function Home() {
               <div className="col-span-2 bg-sky-50 dark:bg-sky-950/30 p-3 rounded-2xl border border-sky-200 dark:border-sky-800">
                 <p className="text-xs font-semibold text-sky-800 dark:text-sky-200 mb-1">Your contact details (private — never published)</p>
                 <div className="grid grid-cols-2 gap-2 mt-2">
-                  <Input placeholder="Your name *" value={sellForm.sellerName} onChange={e => setSellForm({ ...sellForm, sellerName: e.target.value })} />
-                  <Input placeholder="Phone number *" value={sellForm.sellerPhone} onChange={e => setSellForm({ ...sellForm, sellerPhone: e.target.value })} />
+                  <Input className="text-white" placeholder="Your name *" value={sellForm.sellerName} onChange={e => setSellForm({ ...sellForm, sellerName: e.target.value })} />
+                  <Input className="text-white" placeholder="Phone number *" value={sellForm.sellerPhone} onChange={e => setSellForm({ ...sellForm, sellerPhone: e.target.value })} />
                 </div>
-                <Input placeholder="Email (optional)" value={sellForm.sellerEmail} onChange={e => setSellForm({ ...sellForm, sellerEmail: e.target.value })} className="mt-2" />
+                <Input className="text-white" placeholder="Email (optional)" value={sellForm.sellerEmail} onChange={e => setSellForm({ ...sellForm, sellerEmail: e.target.value })} className="mt-2" />
               </div>
               <div className="col-span-2 flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setSellOpen(false)}>Cancel</Button>
@@ -3129,13 +3129,13 @@ export default function Home() {
           fields are pre-filled with the existing request and the submit
           button says "Save changes" instead of "Submit request". */}
       <Dialog open={showRequest} onOpenChange={(o) => { setShowRequest(o); if (!o) { setEditingRequestId(null); setRequestSubmitted(false) } }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="text-white max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Search className="w-5 h-5 text-sky-500" />
               {editingRequestId ? 'Edit Request' : 'Vehicle Request'}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-slate-300">
               {editingRequestId
                 ? 'Update the details of your vehicle request.'
                 : "Can't find what you're looking for? Tell us what you need and we'll match you with sellers."}
@@ -3152,12 +3152,12 @@ export default function Home() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">Your name *</Label>
-                <Input value={requestForm.requesterName} onChange={e => setRequestForm({...requestForm, requesterName: e.target.value})} placeholder="John Dlamini" />
+                <Input className="text-white" value={requestForm.requesterName} onChange={e => setRequestForm({...requestForm, requesterName: e.target.value})} placeholder="John Dlamini" />
               </div>
               <div>
                 <Label className="text-xs">Email *</Label>
                 <Input
-                  type="email"
+ className="text-white"                  type="email"
                   value={requestForm.requesterEmail}
                   onChange={e => setRequestForm({...requestForm, requesterEmail: e.target.value})}
                   placeholder="john@email.com"
@@ -3167,12 +3167,12 @@ export default function Home() {
                   <p className="text-[10px] text-slate-500 mt-1">Email cannot be changed (used to verify ownership)</p>
                 )}
               </div>
-              <div><Label className="text-xs">Phone</Label><Input value={requestForm.requesterPhone} onChange={e => setRequestForm({...requestForm, requesterPhone: e.target.value})} placeholder="+268 7XXX" /></div>
+              <div><Label className="text-xs">Phone</Label><Input className="text-white" value={requestForm.requesterPhone} onChange={e => setRequestForm({...requestForm, requesterPhone: e.target.value})} placeholder="+268 7XXX" /></div>
               <div><Label className="text-xs">Vehicle type</Label><Select value={requestForm.vehicleType} onValueChange={v => setRequestForm({...requestForm, vehicleType: v})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{TYPES.filter(t => t.value !== 'all').map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent></Select></div>
-              <div><Label className="text-xs">Make</Label><Input value={requestForm.make} onChange={e => setRequestForm({...requestForm, make: e.target.value})} placeholder="Toyota" /></div>
-              <div><Label className="text-xs">Model</Label><Input value={requestForm.model} onChange={e => setRequestForm({...requestForm, model: e.target.value})} placeholder="Hilux" /></div>
-              <div><Label className="text-xs">Min budget (E)</Label><Input type="number" value={requestForm.minBudget} onChange={e => setRequestForm({...requestForm, minBudget: e.target.value})} placeholder="100000" /></div>
-              <div><Label className="text-xs">Max budget (E)</Label><Input type="number" value={requestForm.maxBudget} onChange={e => setRequestForm({...requestForm, maxBudget: e.target.value})} placeholder="300000" /></div>
+              <div><Label className="text-xs">Make</Label><Input className="text-white" value={requestForm.make} onChange={e => setRequestForm({...requestForm, make: e.target.value})} placeholder="Toyota" /></div>
+              <div><Label className="text-xs">Model</Label><Input className="text-white" value={requestForm.model} onChange={e => setRequestForm({...requestForm, model: e.target.value})} placeholder="Hilux" /></div>
+              <div><Label className="text-xs">Min budget (E)</Label><Input className="text-white" type="number" value={requestForm.minBudget} onChange={e => setRequestForm({...requestForm, minBudget: e.target.value})} placeholder="100000" /></div>
+              <div><Label className="text-xs">Max budget (E)</Label><Input className="text-white" type="number" value={requestForm.maxBudget} onChange={e => setRequestForm({...requestForm, maxBudget: e.target.value})} placeholder="300000" /></div>
               <div><Label className="text-xs">Fuel</Label><Select value={requestForm.fuelType} onValueChange={v => setRequestForm({...requestForm, fuelType: v})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="any">Any</SelectItem><SelectItem value="petrol">Petrol</SelectItem><SelectItem value="diesel">Diesel</SelectItem></SelectContent></Select></div>
               <div><Label className="text-xs">Transmission</Label><Select value={requestForm.transmission} onValueChange={v => setRequestForm({...requestForm, transmission: v})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="any">Any</SelectItem><SelectItem value="manual">Manual</SelectItem><SelectItem value="automatic">Automatic</SelectItem></SelectContent></Select></div>
               <div><Label className="text-xs">Region</Label><Select value={requestForm.region} onValueChange={v => setRequestForm({...requestForm, region: v})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{REGIONS.filter(r => r !== 'all').map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select></div>
@@ -3194,10 +3194,10 @@ export default function Home() {
 
       {/* CONTACT ADMIN DIALOG (registered users only) */}
       <Dialog open={showContact} onOpenChange={setShowContact}>
-        <DialogContent>
+        <DialogContent className="text-white">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Mail className="w-5 h-5 text-sky-500" /> Message Admin</DialogTitle>
-            <DialogDescription>Have a question? Send us a message and we'll respond to your inbox.</DialogDescription>
+            <DialogDescription className="text-slate-300">Have a question? Send us a message and we'll respond to your inbox.</DialogDescription>
           </DialogHeader>
           {contactSubmitted ? (
             <div className="text-center py-6 space-y-2">
@@ -3208,8 +3208,8 @@ export default function Home() {
             </div>
           ) : (
             <div className="space-y-3">
-              <div><Label>Subject *</Label><Input value={contactForm.subject} onChange={e => setContactForm({...contactForm, subject: e.target.value})} placeholder="Question about a listing" /></div>
-              <div><Label>Message *</Label><Textarea value={contactForm.message} onChange={e => setContactForm({...contactForm, message: e.target.value})} placeholder="Type your question here..." rows={4} /></div>
+              <div><Label className="text-white">Subject *</Label><Input className="text-white" value={contactForm.subject} onChange={e => setContactForm({...contactForm, subject: e.target.value})} placeholder="Question about a listing" /></div>
+              <div><Label className="text-white">Message *</Label><Textarea value={contactForm.message} onChange={e => setContactForm({...contactForm, message: e.target.value})} placeholder="Type your question here..." rows={4} /></div>
               <DialogFooter><Button variant="outline" onClick={() => setShowContact(false)}>Cancel</Button><Button className="bg-sky-500 text-white hover:bg-sky-400" disabled={!contactForm.subject || !contactForm.message} onClick={submitContact}>Send message</Button></DialogFooter>
             </div>
           )}
@@ -3218,13 +3218,13 @@ export default function Home() {
 
       {/* LOGIN DIALOG */}
       <Dialog open={showLogin} onOpenChange={setShowLogin}>
-        <DialogContent>
+        <DialogContent className="text-white">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Users className="w-5 h-5 text-sky-500" /> Login</DialogTitle>
-            <DialogDescription>Login to save favorites and message admin. Don't have an account? Register below.</DialogDescription>
+            <DialogDescription className="text-slate-300">Login to save favorites and message admin. Don't have an account? Register below.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div><Label>Email *</Label><Input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} placeholder="john@email.com" /></div>
+            <div><Label className="text-white">Email *</Label><Input className="text-white" type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} placeholder="john@email.com" /></div>
             {isAdminEmail(loginEmail) ? (
               // Admin emails use the shared admin PIN (sent automatically by submitLogin).
               // The password field is hidden for admin emails so users don't get
@@ -3235,7 +3235,7 @@ export default function Home() {
                 Admin accounts use the shared admin PIN instead of a personal password. Click Login to continue with your admin PIN.
               </div>
             ) : (
-              <div><Label>Password *</Label><Input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="Min 8 characters" minLength={8} /></div>
+              <div><Label className="text-white">Password *</Label><Input className="text-white" type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="Min 8 characters" minLength={8} /></div>
             )}
             {!isAdminEmail(loginEmail) && (
               <div className="text-right"><button className="text-xs text-sky-400 hover:text-sky-300 underline" onClick={() => { setShowLogin(false); setShowForgotPassword(true) }}>Forgot password?</button></div>
@@ -3271,7 +3271,7 @@ export default function Home() {
               <div>
                 <Label className="text-white">Verification code *</Label>
                 <Input
-                  type="text"
+ className="text-white"                  type="text"
                   inputMode="numeric"
                   maxLength={6}
                   value={otpCode}
@@ -3426,7 +3426,7 @@ export default function Home() {
           }
         }}
       >
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="text-white max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5 text-sky-500" />
@@ -3669,14 +3669,14 @@ export default function Home() {
 
       {/* ADD ADMIN DIALOG */}
       <Dialog open={showAddAdmin} onOpenChange={setShowAddAdmin}>
-        <DialogContent>
+        <DialogContent className="text-white">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><UserPlus className="w-5 h-5 text-sky-500" /> Add Team Member</DialogTitle>
-            <DialogDescription>Grant admin access to a team member. They can manage listings and respond to enquiries.</DialogDescription>
+            <DialogDescription className="text-slate-300">Grant admin access to a team member. They can manage listings and respond to enquiries.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div><Label>Name *</Label><Input value={newAdminForm.name} onChange={e => setNewAdminForm({...newAdminForm, name: e.target.value})} placeholder="Sipho Dlamini" /></div>
-            <div><Label>Email *</Label><Input type="email" value={newAdminForm.email} onChange={e => setNewAdminForm({...newAdminForm, email: e.target.value})} placeholder="sipho@email.com" /></div>
+            <div><Label className="text-white">Name *</Label><Input className="text-white" value={newAdminForm.name} onChange={e => setNewAdminForm({...newAdminForm, name: e.target.value})} placeholder="Sipho Dlamini" /></div>
+            <div><Label className="text-white">Email *</Label><Input className="text-white" type="email" value={newAdminForm.email} onChange={e => setNewAdminForm({...newAdminForm, email: e.target.value})} placeholder="sipho@email.com" /></div>
             <div className="flex justify-end gap-2 pt-2"><Button variant="outline" onClick={() => setShowAddAdmin(false)}>Cancel</Button><Button className="bg-sky-500 text-white hover:bg-sky-400" disabled={!newAdminForm.name || !newAdminForm.email} onClick={addAdmin}>Add admin</Button></div>
           </div>
         </DialogContent>
@@ -3684,7 +3684,7 @@ export default function Home() {
 
       {/* DISCLAIMER DIALOG */}
       <Dialog open={showDisclaimer} onOpenChange={setShowDisclaimer}>
-        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+        <DialogContent className="text-white max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><FileText className="w-5 h-5 text-sky-500" /> Disclaimer</DialogTitle>
           </DialogHeader>
@@ -3704,10 +3704,10 @@ export default function Home() {
 
       {/* FORGOT PASSWORD DIALOG */}
       <Dialog open={showForgotPassword} onOpenChange={setShowForgotPassword}>
-        <DialogContent>
+        <DialogContent className="text-white">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Mail className="w-5 h-5 text-sky-500" /> Forgot Password</DialogTitle>
-            <DialogDescription>Enter your email and we'll send you a reset link.</DialogDescription>
+            <DialogDescription className="text-slate-300">Enter your email and we'll send you a reset link.</DialogDescription>
           </DialogHeader>
           {forgotSent ? (
             <div className="text-center py-6 space-y-2">
@@ -3718,7 +3718,7 @@ export default function Home() {
             </div>
           ) : (
             <div className="space-y-3">
-              <div><Label>Email *</Label><Input type="email" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} placeholder="john@email.com" /></div>
+              <div><Label className="text-white">Email *</Label><Input className="text-white" type="email" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} placeholder="john@email.com" /></div>
               <DialogFooter><Button variant="outline" onClick={() => setShowForgotPassword(false)}>Cancel</Button><Button className="bg-sky-500 text-white hover:bg-sky-400" disabled={!forgotEmail} onClick={() => setForgotSent(true)}>Send reset link</Button></DialogFooter>
             </div>
           )}
@@ -3727,10 +3727,10 @@ export default function Home() {
 
       {/* PROFILE SETTINGS DIALOG */}
       <Dialog open={showProfile} onOpenChange={setShowProfile}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="text-white max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><UserCog className="w-5 h-5 text-sky-500" /> Profile Settings</DialogTitle>
-            <DialogDescription>Update your account details.</DialogDescription>
+            <DialogDescription className="text-slate-300">Update your account details.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             {/* Username (read-only) — shown so the user knows what their username is.
@@ -3740,12 +3740,12 @@ export default function Home() {
                 Username can't be changed because it's referenced by existing messages
                 in the DB (changing it would orphan those references). */}
             <div>
-              <Label>Username</Label>
+              <Label className="text-white">Username</Label>
               <Input
                 value={currentUser?.username ? `@${currentUser.username}` : '(not set)'}
                 readOnly
                 disabled
-                className="bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 cursor-not-allowed"
+                className="text-white bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 cursor-not-allowed"
               />
               <p className="text-[10px] text-slate-500 mt-1">
                 {currentUser?.username
@@ -3753,12 +3753,12 @@ export default function Home() {
                   : 'No username set. Contact admin if you need one.'}
               </p>
             </div>
-            <div><Label>Name</Label><Input value={profileForm.name || currentUser?.name || ''} onChange={e => setProfileForm({...profileForm, name: e.target.value})} /></div>
-            <div><Label>Email</Label><Input type="email" value={profileForm.email || currentUser?.email || ''} onChange={e => setProfileForm({...profileForm, email: e.target.value})} /></div>
-            <div><Label>Phone</Label><Input value={profileForm.phone || currentUser?.phone || ''} onChange={e => setProfileForm({...profileForm, phone: e.target.value})} /></div>
+            <div><Label className="text-white">Name</Label><Input className="text-white" value={profileForm.name || currentUser?.name || ''} onChange={e => setProfileForm({...profileForm, name: e.target.value})} /></div>
+            <div><Label className="text-white">Email</Label><Input className="text-white" type="email" value={profileForm.email || currentUser?.email || ''} onChange={e => setProfileForm({...profileForm, email: e.target.value})} /></div>
+            <div><Label className="text-white">Phone</Label><Input className="text-white" value={profileForm.phone || currentUser?.phone || ''} onChange={e => setProfileForm({...profileForm, phone: e.target.value})} /></div>
             <Separator />
-            <div><Label>Current password (to change)</Label><Input type="password" value={profileForm.password} onChange={e => setProfileForm({...profileForm, password: e.target.value})} placeholder="Enter current password" /></div>
-            <div><Label>New password (min 8 characters)</Label><Input type="password" value={profileForm.newPassword} onChange={e => setProfileForm({...profileForm, newPassword: e.target.value})} placeholder="Leave blank to keep current" minLength={8} /></div>
+            <div><Label className="text-white">Current password (to change)</Label><Input className="text-white" type="password" value={profileForm.password} onChange={e => setProfileForm({...profileForm, password: e.target.value})} placeholder="Enter current password" /></div>
+            <div><Label className="text-white">New password (min 8 characters)</Label><Input className="text-white" type="password" value={profileForm.newPassword} onChange={e => setProfileForm({...profileForm, newPassword: e.target.value})} placeholder="Leave blank to keep current" minLength={8} /></div>
             <p className="text-[10px] text-slate-500">⚠️ Password changes require cloud authentication (coming soon). Profile info saves locally for now.</p>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowProfile(false)}>Cancel</Button>
@@ -3902,7 +3902,7 @@ function AdminDashboard({ vehicleRequests, adminMessages, adminTeam, respondToMe
         <CardContent className="space-y-3">
           <div>
             <Label htmlFor="pin">Admin PIN</Label>
-            <Input id="pin" type="password" value={pin} onChange={e => setPin(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()} placeholder="****" />
+            <Input className="text-white" id="pin" type="password" value={pin} onChange={e => setPin(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()} placeholder="****" />
             {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
           </div>
           <Button className="w-full bg-sky-500 text-slate-900 hover:bg-sky-400" onClick={login}>
@@ -4179,7 +4179,7 @@ function MessageInput({ onSend }: { onSend: (text: string) => void }) {
   const [text, setText] = useState('')
   return (
     <div className="flex gap-2">
-      <Input value={text} onChange={e => setText(e.target.value)} placeholder="Type your reply to the buyer..." onKeyDown={e => { if (e.key === 'Enter' && text.trim()) { onSend(text); setText('') } }} />
+      <Input className="text-white" value={text} onChange={e => setText(e.target.value)} placeholder="Type your reply to the buyer..." onKeyDown={e => { if (e.key === 'Enter' && text.trim()) { onSend(text); setText('') } }} />
       <Button className="bg-sky-500 text-slate-900 hover:bg-sky-400" onClick={() => { if (text.trim()) { onSend(text); setText('') } }}>
         <Send className="w-4 h-4" />
       </Button>
@@ -4279,7 +4279,7 @@ function BroadcastsTab() {
         <CardContent className="space-y-3">
           <div>
             <Label className="text-xs">Title *</Label>
-            <Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="e.g. New Year Special" />
+            <Input className="text-white" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="e.g. New Year Special" />
           </div>
           <div>
             <Label className="text-xs">Message *</Label>
@@ -4618,7 +4618,7 @@ function UserManagementTab() {
         <CardContent className="space-y-3">
           <div className="flex gap-2">
             <Input
-              placeholder="Search by email, username, phone, or name..."
+ className="text-white"              placeholder="Search by email, username, phone, or name..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') fetchUsers(searchQuery) }}
