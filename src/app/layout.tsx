@@ -166,10 +166,14 @@ export default function RootLayout({
             #initial-loader .loader-spinner { animation: none; }
           }
         `}} />
-        {/* Register service worker */}
+        {/* Register service worker + remove initial loader.
+            Both scripts are in the <head> because Next.js executes inline scripts
+            in the <head> reliably. Scripts in the <body> using dangerouslySetInnerHTML
+            can get serialized as RSC payload data instead of executing. */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
+              // Register service worker
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
                   navigator.serviceWorker.register('/sw.js').then(function(registration) {
@@ -179,6 +183,39 @@ export default function RootLayout({
                   });
                 });
               }
+
+              // Remove the initial loading screen once the page is fully loaded.
+              // The loader div is in <body> (rendered before React hydrates) and
+              // shows a branded spinner. We remove it after 'load' fires + 300ms
+              // delay (gives React time to hydrate and render the actual app).
+              // Fail-safe: remove after 5s regardless, so users aren't stuck.
+              (function() {
+                var loader = document.getElementById('initial-loader');
+                if (!loader) return;
+
+                function removeLoader() {
+                  var l = document.getElementById('initial-loader');
+                  if (l && l.parentNode) {
+                    l.style.transition = 'opacity 0.3s ease-out';
+                    l.style.opacity = '0';
+                    setTimeout(function() {
+                      if (l.parentNode) l.parentNode.removeChild(l);
+                    }, 300);
+                  }
+                }
+
+                window.addEventListener('load', function() {
+                  setTimeout(removeLoader, 300);
+                });
+
+                // Fail-safe: remove after 5s no matter what
+                setTimeout(removeLoader, 5000);
+
+                // If DOM is already complete, remove after short delay
+                if (document.readyState === 'complete') {
+                  setTimeout(removeLoader, 300);
+                }
+              })();
             `,
           }}
         />
@@ -200,59 +237,6 @@ export default function RootLayout({
           <div class="loader-subtext">Managed Vehicle Marketplace</div>
           <div class="loader-spinner"></div>
         </div>
-        {/*
-          Remove the initial loader after the page has fully loaded.
-          We use a small delay (300ms) after 'load' to give React time to
-          hydrate and render the actual app content. If we removed it
-          immediately, the user might see a brief flash of un-hydrated
-          content before React mounts.
-
-          The loader also has a fail-safe: if the load event doesn't fire
-          within 5 seconds (e.g. slow JS bundle), we remove it anyway so
-          the user isn't stuck on a loading screen forever.
-        */}
-        <script dangerouslySetInnerHTML={{ __html: `
-          (function() {
-            var loader = document.getElementById('initial-loader');
-            if (!loader) return;
-
-            function removeLoader() {
-              if (loader && loader.parentNode) {
-                // Fade out the loader for a smooth transition
-                loader.style.transition = 'opacity 0.3s ease-out';
-                loader.style.opacity = '0';
-                // Remove from DOM after the fade-out animation
-                setTimeout(function() {
-                  if (loader.parentNode) {
-                    loader.parentNode.removeChild(loader);
-                  }
-                }, 300);
-              }
-            }
-
-            // Remove loader 300ms after the 'load' event fires.
-            // This gives React time to hydrate and render the app.
-            window.addEventListener('load', function() {
-              setTimeout(removeLoader, 300);
-            });
-
-            // Fail-safe: if 'load' hasn't fired within 5 seconds,
-            // remove the loader anyway so the user isn't stuck.
-            // This handles cases where a JS bundle fails to load
-            // (e.g. network error) but the HTML/CSS already rendered.
-            setTimeout(function() {
-              if (loader && loader.parentNode) {
-                removeLoader();
-              }
-            }, 5000);
-
-            // Also remove immediately if the DOM is already loaded
-            // (e.g. the script runs after everything is ready).
-            if (document.readyState === 'complete') {
-              setTimeout(removeLoader, 300);
-            }
-          })();
-        `}} />
         {children}
         <Toaster />
       </body>
