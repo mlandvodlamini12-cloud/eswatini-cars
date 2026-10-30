@@ -1611,3 +1611,39 @@ what the app does (connection/listing platform), what it doesn't do
 rights are. They don't pretend the service is free if it isn't, and they
 don't try to disguise a brokerage as something else. This is the safer
 long-term approach — clean disclosure is lower-risk than disguised structures.
+
+---
+Task ID: terms-privacy-back-crash-fix-1
+Agent: main
+Task: Fix the "Application error: a client-side exception has occurred" crash when clicking Back from /terms or /privacy.
+
+Work Log:
+User reported: "After user reads either T&Cs or Privacy Policy when clicking back at the top the app crashes and shows the message: Application error: a client-side exception has occurred."
+
+Root cause:
+The /terms and /privacy pages used Next.js <Link href="/"> for the "Back to Eswatini Cars" link. Next.js <Link> does client-side navigation, which means clicking it tries to hydrate the homepage React tree WITHOUT a full page reload. The homepage is a complex client component with lots of state (auth, listings, broadcasts, messages, requests, etc.) that doesn't hydrate cleanly when navigated to from a static page like /terms — the React tree shapes don't match, causing a hydration error that crashes the page.
+
+Fix (commit 1778aee):
+Changed all <Link> tags in /terms and /privacy to plain <a> tags:
+- "Back to Eswatini Cars" link at the top of both pages
+- Cross-links between /terms and /privacy (e.g. "see our Privacy Policy")
+- Removed the unused 'import Link from next/link' from both files
+
+A plain <a href="/"> triggers a full page reload, which fetches the homepage fresh from the server and lets React mount cleanly from scratch. This is the safer behavior for navigating back to a complex client-rendered app from a static page.
+
+Deploy:
+- Commit 1778aee: fix(legal): use plain <a> tags instead of Next.js <Link> to fix crash on back navigation
+- Deploy URL: https://eswatini-cars-dn2gd7x2c-eswatini-cars.vercel.app → aliased to https://eswatini-cars.vercel.app
+
+Verification (agent-browser against live site):
+1. ✅ /terms → click "Back to Eswatini Cars" → lands on homepage (title: "ESWATINI CARS — Managed Vehicle Marketplace", heading "Find your next vehicle in Eswatini" rendered), no errors
+2. ✅ /privacy → click "Back to Eswatini Cars" → lands on homepage, no errors
+3. ✅ /terms → click "Privacy Policy" cross-link → lands on /privacy (title: "Privacy Policy — Eswatini Cars", URL: /privacy), no errors
+
+Stage Summary:
+- ✅ BACK NAVIGATION CRASH FIXED
+- ✅ Both /terms and /privacy pages now use plain <a> tags for all navigation
+- ✅ Full page reload ensures clean React mount on return to homepage
+- ✅ Cross-links between /terms and /privacy also use plain <a> tags
+- ✅ DEPLOY COMPLETE: https://eswatini-cars.vercel.app (commit 1778aee)
+- ✅ NO REGRESSIONS: existing features untouched
