@@ -5,7 +5,13 @@ const SESSION_COOKIE = 'ec_session'
 const SESSION_DURATION = 30 * 24 * 60 * 60
 
 function getSecret(): Uint8Array {
-  const secret = process.env.NEXTAUTH_SECRET || 'eswatini-cars-prod-secret-change-this-to-a-long-random-string-2026'
+  // SECURITY: No more fallback secret. If NEXTAUTH_SECRET is not set,
+  // we throw an error instead of using a known string that attackers
+  // could use to forge JWT tokens.
+  const secret = process.env.NEXTAUTH_SECRET
+  if (!secret) {
+    throw new Error('NEXTAUTH_SECRET environment variable is not set. JWT tokens cannot be created without it.')
+  }
   return new TextEncoder().encode(secret)
 }
 

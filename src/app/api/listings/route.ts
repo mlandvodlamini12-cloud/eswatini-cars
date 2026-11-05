@@ -42,8 +42,12 @@ export async function GET(req: NextRequest) {
       orderBy: [{ featured: 'desc' }, { createdAt: 'desc' }],
     })
 
-    // Hide seller phone (private), but keep sellerEmail so client can check ownership
-    const safe = listings.map(({ sellerPhone, ...rest }) => rest)
+    // SECURITY: Hide seller phone AND sellerEmail from public listing list.
+    // Previously, sellerEmail was exposed so the client could check ownership
+    // for edit/delete buttons. But this leaks user emails to anyone who
+    // calls the API. Now the client checks ownership via the session cookie
+    // on the server side (PATCH/DELETE routes verify ownership).
+    const safe = listings.map(({ sellerPhone, sellerEmail, ...rest }) => rest)
     return NextResponse.json({ listings: safe })
   } catch (err: any) {
     console.error('[api/listings] GET error:', err)

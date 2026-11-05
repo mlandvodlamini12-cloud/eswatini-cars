@@ -402,7 +402,11 @@ const TRANSMISSIONS = ['all', 'manual', 'automatic']
 // admin and the user via the Messages feature, and the app stays neutral on
 // the topic of payments. This keeps the app's public-facing posture as a
 // "free listing + connection" platform, with fee details available on request.
-const ADMIN_PIN = '1374' // 🔐 Custom admin PIN
+// SECURITY: ADMIN_PIN is no longer hardcoded in client-side code.
+// The client sends { email, adminPin: 'user-entered-pin' } to /api/auth/login
+// and the SERVER validates the PIN. This prevents anyone from finding the
+// PIN by viewing page source.
+// The admin PIN is stored ONLY in the server-side route: src/app/api/auth/login/route.ts
 
 // === ADMIN EMAIL ALLOWLIST ===
 // Only these emails can see the Admin Dashboard button.
@@ -1250,7 +1254,10 @@ export default function Home() {
       const isAdmin = isAdminEmail(loginEmail)
       const payload: any = { email: loginEmail }
       if (isAdmin) {
-        payload.adminPin = ADMIN_PIN
+        // SECURITY: Admin PIN is now entered by the user in the Login dialog's
+        // password field (for admin emails, the password field acts as PIN entry).
+        // The server validates it against the hardcoded PIN in login/route.ts.
+        payload.adminPin = loginPassword
       } else {
         payload.password = loginPassword
       }
@@ -3911,12 +3918,28 @@ function AdminDashboard({ vehicleRequests, adminMessages, adminTeam, respondToMe
   const [error, setError] = useState('')
 
   const login = () => {
-    if (pin === ADMIN_PIN) {
-      setAuthed(true)
-      setError('')
-    } else {
-      setError('Wrong PIN. Try again.')
-    }
+    // SECURITY: PIN is now validated server-side during login (login/route.ts).
+    // This client-side check is a SECOND gate — the user must enter the PIN
+    // again here to access the admin dashboard. The PIN value is NOT stored
+    // in client code — we validate it by calling the API.
+    // For now, since the user already logged in as admin (server verified
+    // the PIN during login), this second gate just needs a simple check.
+    // We send the PIN to /api/auth/login again to verify.
+    fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email: 'mlandvodlamini12@gmail.com', adminPin: pin }),
+    }).then(res => {
+      if (res.ok) {
+        setAuthed(true)
+        setError('')
+      } else {
+        setError('Wrong PIN. Try again.')
+      }
+    }).catch(() => {
+      setError('Network error. Please try again.')
+    })
   }
 
   if (!authed) {

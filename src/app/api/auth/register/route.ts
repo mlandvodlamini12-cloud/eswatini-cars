@@ -2,11 +2,21 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import bcrypt from 'bcryptjs'
 import { createSessionToken, getSessionCookieName, getSessionDuration } from '@/lib/session'
+import { checkRateLimit, getClientIP } from '@/lib/rate-limit'
 
 const ADMIN_EMAILS = ['mlandvodlamini12@gmail.com', 'admin@eswatinicars.co.sz']
 
 export async function POST(req: NextRequest) {
   try {
+    // RATE LIMITING: Max 5 registrations per IP per hour
+    const clientIP = getClientIP(req)
+    const rateLimit = checkRateLimit(`register:${clientIP}`, 5, 60 * 60 * 1000)
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many registration attempts. Please try again later.' },
+        { status: 429 }
+      )
+    }
     const body = await req.json()
     const { name, email, password, phone, username, phoneVerified } = body
     if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 })

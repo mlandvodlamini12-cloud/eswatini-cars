@@ -2,12 +2,24 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import bcrypt from 'bcryptjs'
 import { createSessionToken, getSessionCookieName, getSessionDuration } from '@/lib/session'
+import { checkRateLimit, getClientIP } from '@/lib/rate-limit'
 
 const ADMIN_EMAILS = ['mlandvodlamini12@gmail.com', 'admin@eswatinicars.co.sz']
 const ADMIN_PIN = '1374'
 
 export async function POST(req: NextRequest) {
   try {
+    // RATE LIMITING: Max 10 login attempts per IP per 15 minutes
+    // Prevents brute force attacks on passwords and admin PIN
+    const clientIP = getClientIP(req)
+    const rateLimit = checkRateLimit(`login:${clientIP}`, 10, 15 * 60 * 1000)
+    if (!rateLimit.allowed) {
+      const minsLeft = Math.ceil((rateLimit.resetAt - Date.now()) / 60000)
+      return NextResponse.json(
+        { error: `Too many login attempts. Try again in ${minsLeft} minutes.` },
+        { status: 429 }
+      )
+    }
     const body = await req.json()
     const { email, password, adminPin } = body
     if (!email) return NextResponse.json({ error: 'Email is required' }, { status: 400 })
