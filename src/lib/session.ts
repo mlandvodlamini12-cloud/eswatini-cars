@@ -2,7 +2,11 @@
 import { SignJWT, jwtVerify } from 'jose'
 
 const SESSION_COOKIE = 'ec_session'
-const SESSION_DURATION = 30 * 24 * 60 * 60
+// Session duration: 7 days. Previously was 30 days which meant users
+// stayed logged in for a month without re-authenticating — a security risk
+// if the device is shared or stolen. 7 days is a good balance between
+// convenience and security.
+const SESSION_DURATION = 7 * 24 * 60 * 60
 
 function getSecret(): Uint8Array {
   // SECURITY: No more fallback secret. If NEXTAUTH_SECRET is not set,
