@@ -7,6 +7,11 @@ android {
     namespace 'sz.co.eswatinicars.app'
     compileSdk 34
 
+    // AGP 8+ disables BuildConfig by default — we need it for LAUNCH_URL per-flavor
+    buildFeatures {
+        buildConfig true
+    }
+
     defaultConfig {
         // applicationId is now set per-flavor (see productFlavors below)
         minSdk 24          // Android 7.0 — covers ~98% of devices in Eswatini
