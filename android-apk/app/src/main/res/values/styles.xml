@@ -1,21 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- CRITICAL: parent MUST be Theme.AppCompat.* because MainActivity extends
-         AppCompatActivity. Using android:Theme.Material.* throws
-         "You need to use a Theme.AppCompat theme (or descendant) with this activity"
-         on launch → app crashes immediately. -->
+    <!-- CRITICAL: parent MUST be Theme.AppCompat because MainActivity extends
+         AppCompatActivity. Using android Theme Material throws
+         "You need to use a Theme.AppCompat theme (or descendant) with this
+         activity" on launch, app crashes immediately. -->
 
-    <!-- statusBarColor is NAVY (#0a1834) to match the app's CSS header.
-         Previously this was @android:color/white, which made the status bar
-         background white AND the status bar icons (battery, time, notifications)
-         were also white by default → icons were invisible against white.
+    <!-- statusBarColor is NAVY (0a1834) to match the app CSS header.
+         Previously this was white, which made the status bar background
+         white AND the status bar icons (battery, time, notifications)
+         were also white by default, so icons were invisible against white.
          Navy background + white icons = icons visible. -->
     <style name="Theme.EswatiniCars" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="android:windowBackground">@android:color/white</item>
         <item name="android:statusBarColor">@color/navy</item>
         <item name="android:navigationBarColor">@color/navy</item>
         <!-- windowLightStatusBar=false means status bar icons are WHITE
-             (default for dark backgrounds). Do NOT set this to true —
+             (default for dark backgrounds). Do NOT set this to true,
              true would make icons dark, which would be invisible on navy. -->
         <item name="android:windowLightStatusBar">false</item>
     </style>
