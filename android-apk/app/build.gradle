@@ -38,5 +38,14 @@ dependencies {
     // Google Play Services Auth — for GoogleSignInClient (account picker)
     implementation 'com.google.android.gms:play-services-auth:20.7.0'
 
+    // Force a single Kotlin stdlib version — play-services-auth brings in
+    // an old kotlin-stdlib-jdk7/jdk8 (1.6.21) that conflicts with the newer
+    // 1.8.22 pulled in transitively, causing "Duplicate class" build errors.
+    constraints {
+        implementation('org.jetbrains.kotlin:kotlin-stdlib:1.8.22')
+        implementation('org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22')
+        implementation('org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22')
+    }
+
     // WebView is part of the Android framework — no dependency needed
 }

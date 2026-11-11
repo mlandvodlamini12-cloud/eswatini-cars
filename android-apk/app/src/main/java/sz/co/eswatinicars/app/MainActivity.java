@@ -246,7 +246,7 @@ public class MainActivity extends AppCompatActivity {
                 }
                 // Also revoke Google Sign-In access so the next sign-in
                 // shows the picker fresh (belt-and-braces with signOut()).
-                mGoogleSignInClient.revokeAccess(null);
+                mGoogleSignInClient.revokeAccess();
             });
         }
 
