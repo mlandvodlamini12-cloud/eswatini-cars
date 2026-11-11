@@ -76,7 +76,8 @@ model User {
   name          String
   phone         String?
   phoneVerified Boolean  @default(false)
-  passwordHash  String
+  passwordHash  String?  // nullable — Google Sign-In users have no password
+  authProvider  String?  // "google" | "password" | null
   role          String   @default("user")
   blocked       Boolean  @default(false)
   createdAt     DateTime @default(now())
