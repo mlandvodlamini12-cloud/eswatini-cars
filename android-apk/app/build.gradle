@@ -11,8 +11,8 @@ android {
         applicationId "sz.co.eswatinicars.app"
         minSdk 24          // Android 7.0 — covers ~98% of devices in Eswatini
         targetSdk 34       // required for Play Store submission
-        versionCode 7
-        versionName "1.0.6"
+        versionCode 8
+        versionName "1.0.7"
     }
 
     buildTypes {

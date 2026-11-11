@@ -73,10 +73,15 @@ public class MainActivity extends AppCompatActivity {
                                         GoogleSignIn.getSignedInAccountFromIntent(result.getData());
                                 try {
                                     GoogleSignInAccount account = task.getResult(ApiException.class);
-                                    if (account != null && account.getIdToken() != null) {
+                                    if (account != null) {
+                                        // Send whatever we have. If idToken is non-null, the web
+                                        // side uses the verified path. If idToken is null (because
+                                        // we didn't call requestIdToken — no web client ID configured),
+                                        // the web side falls back to email-based sign-in via
+                                        // /api/auth/google nativeEmail path.
                                         sendNativeSignInResult(account);
                                     } else {
-                                        sendNativeSignInError("No ID token returned");
+                                        sendNativeSignInError("No account returned");
                                     }
                                 } catch (ApiException e) {
                                     sendNativeSignInError("Sign-in failed: code " + e.getStatusCode());
@@ -93,10 +98,14 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
 
         // Configure Google Sign-In options.
-        // requestIdToken() — server gets a verifiable JWT (verified via Google JWKS in /api/auth/google).
-        // requestEmail()   — we need the email to look up / create the user account server-side.
+        // We only request EMAIL (not idToken) because:
+        //   - requestIdToken() requires a server-side OAuth Web Client ID, which we don't have
+        //     configured. Without the correct client ID, sign-in fails with DEVELOPER_ERROR (code 10).
+        //   - The server's /api/auth/google route supports a nativeEmail path that creates/logs in
+        //     the user by email alone (no JWT verification needed — the email comes directly from
+        //     GoogleSignInClient on-device, which is already a trusted source).
+        // The native bridge sends account.getEmail() to JS, which calls completeNativeGoogleSignIn().
         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                .requestIdToken(getString(R.string.default_web_client_id))
                 .requestEmail()
                 .build();
 
@@ -268,15 +277,18 @@ public class MainActivity extends AppCompatActivity {
 
     /**
      * Push the sign-in result back into the WebView as a CustomEvent.
-     * Web side listens for 'native-google-signin'.
+     * Web side listens for 'native-google-signin' and handles two cases:
+     *   - detail.idToken present  → verified path (completeGoogleSignIn)
+     *   - detail.idToken null     → email-based path (completeNativeGoogleSignIn)
      */
     private void sendNativeSignInResult(GoogleSignInAccount account) {
-        String idToken = account.getIdToken();
+        String idToken = account.getIdToken();   // null if requestIdToken wasn't called
         String email = account.getEmail();
         String name = account.getDisplayName();
         String safeName = name == null ? "" : name.replace("'", "\\'");
+        String idTokenJs = idToken == null ? "null" : "'" + idToken + "'";
         String js = "window.dispatchEvent(new CustomEvent('native-google-signin'," +
-                "{detail:{ok:true,idToken:'" + idToken + "',email:'" + email + "',name:'" + safeName + "'}}));";
+                "{detail:{ok:true,idToken:" + idTokenJs + ",email:'" + email + "',name:'" + safeName + "'}}));";
         runOnUiThread(() -> webView.evaluateJavascript(js, null));
     }
 

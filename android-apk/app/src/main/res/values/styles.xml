@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.EswatiniCars" parent="android:Theme.Material.Light.NoActionBar">
+    <!-- CRITICAL: parent MUST be Theme.AppCompat.* because MainActivity extends
+         AppCompatActivity. Using android:Theme.Material.* throws
+         "You need to use a Theme.AppCompat theme (or descendant) with this activity"
+         on launch → app crashes immediately. -->
+    <style name="Theme.EswatiniCars" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="android:windowBackground">@android:color/white</item>
         <item name="android:statusBarColor">@android:color/white</item>
         <item name="android:navigationBarColor">@android:color/white</item>

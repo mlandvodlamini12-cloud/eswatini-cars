@@ -18,7 +18,7 @@ For simplicity we generate a single bitmap launcher that works on all densities:
 import os
 from PIL import Image
 
-SRC = "/home/z/my-project/upload/Eswatini Cars Glossy Badge Logo.png"
+SRC = "/home/z/my-project/upload/icon-preview.png"
 DST_BASE = "/home/z/my-project/android-apk/app/src/main/res"
 
 SIZES = {
