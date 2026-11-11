@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Eswatini Cars</string>
+    <string name="launcher_name">Eswatini Cars</string>
+    <!-- The Firebase Web Client ID (OAuth client). Used by GoogleSignInOptions
+         to request an ID token that the server can verify via Google JWKS.
+         Value is the Firebase project's default_web_client_id, which is the
+         OAuth 2.0 Web Application client ID auto-created when you enable
+         Google Sign-In in the Firebase Console. -->
+    <string name="default_web_client_id">365898645639-6rq7bjk4hpq7r4t6m4q43bv21u1vujv5.apps.googleusercontent.com</string>
+</resources>

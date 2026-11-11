@@ -150,3 +150,39 @@ export async function verifyPhoneOTP(confirmationResult: any, code: string): Pro
     return { verified: false, error: friendlyErrors[errorCode] || err?.message || 'Invalid code' }
   }
 }
+
+export interface GoogleSignInResult { idToken?: string; email?: string; name?: string; error?: string }
+
+export async function signInWithGoogle(): Promise<GoogleSignInResult> {
+  try {
+    const auth = await getFirebaseAuth()
+    if (!auth) return { error: 'Firebase not initialized' }
+    const { GoogleAuthProvider, signInWithPopup, signInWithRedirect } = await import('firebase/auth')
+    const provider = new GoogleAuthProvider()
+    provider.addScope('email'); provider.addScope('profile')
+    provider.setCustomParameters({ prompt: 'select_account' })
+    try {
+      const result = await signInWithPopup(auth, provider)
+      if (result?.user) { const idToken = await result.user.getIdToken(); return { idToken, email: result.user.email || undefined, name: result.user.displayName || undefined } }
+    } catch (e: any) {
+      if (['auth/popup-blocked','auth/popup-closed-by-user','auth/cancelled-popup-request','auth/operation-not-supported-in-this-environment'].includes(e?.code)) { await signInWithRedirect(auth, provider); return { error: '__redirect_in_progress__' } }
+      throw e
+    }
+    return { error: 'No result from Google Sign-In' }
+  } catch (err: any) {
+    const f: Record<string,string> = { 'auth/popup-closed-by-user':'Sign-in cancelled. Please try again.','auth/operation-not-allowed':'Google Sign-In not enabled in Firebase Console.','auth/unauthorized-domain':'Domain not authorized in Firebase.' }
+    return { error: f[err?.code] || err?.message || 'Google Sign-In failed' }
+  }
+}
+
+export async function checkGoogleRedirectResult(): Promise<GoogleSignInResult> {
+  try {
+    const auth = await getFirebaseAuth()
+    if (!auth) return { error: 'Firebase not initialized' }
+    const { getRedirectResult } = await import('firebase/auth')
+    const result = await getRedirectResult(auth)
+    if (!result?.user) return { error: '__no_pending_redirect__' }
+    const idToken = await result.user.getIdToken()
+    return { idToken, email: result.user.email || undefined, name: result.user.displayName || undefined }
+  } catch (err: any) { return { error: err?.message || 'Failed to complete Google Sign-In' } }
+}

@@ -508,6 +508,34 @@ export default function Home() {
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [showRegister, setShowRegister] = useState(false)
   const [showLogin, setShowLogin] = useState(false)
+  // PWA INSTALL PROMPT — captures beforeinstallprompt event so we can show
+  // a custom "Install App" button. Once installed, the app runs in
+  // "standalone" mode (no browser address bar, full-screen experience).
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
+  const [showInstallBanner, setShowInstallBanner] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    // Check if app is already running as installed PWA (standalone mode)
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+      || (window.navigator as any).standalone === true
+    if (isStandalone) return // Already installed — no banner needed
+
+    // Check if user previously dismissed the install banner
+    try {
+      const dismissed = localStorage.getItem('pwa_install_dismissed')
+      if (dismissed === '1') return
+    } catch {}
+
+    const handler = (e: Event) => {
+      e.preventDefault() // Prevent Chrome's default mini-infobar
+      setDeferredPrompt(e)
+      // Show our custom install banner after 3s delay (let user see the app first)
+      setTimeout(() => setShowInstallBanner(true), 3000)
+    }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
   const [showRequest, setShowRequest] = useState(false)
   const [showContact, setShowContact] = useState(false)
   const [vehicleRequests, setVehicleRequests] = useState<VehicleRequest[]>([])
@@ -709,7 +737,24 @@ export default function Home() {
   const featuredListings = useMemo(() => listings.filter(l => l.featured), [listings])
   const justListed = useMemo(() => listings.slice(0, 8), [listings])
   const savedListings = useMemo(() => listings.filter(l => savedIds.includes(l.id)), [listings, savedIds])
-  const myListings = useMemo(() => currentUser?.email ? listings.filter(l => l.sellerEmail === currentUser.email) : [], [listings, currentUser])
+  const myListings = useMemo(() => {
+    // For logged-in users: match by sellerEmail
+    if (currentUser?.email) {
+      return listings.filter(l => l.sellerEmail === currentUser.email)
+    }
+    // For logged-out users: match by listing IDs stored in localStorage
+    if (typeof window !== 'undefined') {
+      try {
+        const myIdsRaw = localStorage.getItem('myListingIds')
+        if (!myIdsRaw) return []
+        const myIds = JSON.parse(myIdsRaw)
+        if (Array.isArray(myIds)) {
+          return listings.filter(l => myIds.includes(l.id))
+        }
+      } catch {}
+    }
+    return []
+  }, [listings, currentUser])
   const myRequests = useMemo(() => currentUser?.email ? vehicleRequests.filter(r => r.requesterEmail === currentUser.email || r.requesterPhone === currentUser.phone) : [], [vehicleRequests, currentUser])
   const recentlyViewed = useMemo(() => recentlyViewedIds.map(id => listings.find(l => l.id === id)).filter(Boolean) as Listing[], [listings, recentlyViewedIds])
 
@@ -1054,6 +1099,24 @@ export default function Home() {
       }
 
       const data = await res.json()
+      // Save listing ID to localStorage so user can find it via "My Posts"
+      if (data?.listing?.id && typeof window !== 'undefined') {
+        try {
+          const myIdsRaw = localStorage.getItem('myListingIds')
+          const myIds: string[] = myIdsRaw ? JSON.parse(myIdsRaw) : []
+          if (Array.isArray(myIds) && !myIds.includes(data.listing.id)) {
+            myIds.unshift(data.listing.id)
+            localStorage.setItem('myListingIds', JSON.stringify(myIds.slice(0, 100)))
+          }
+          // Also store phone for delete verification
+          const phoneMapRaw = localStorage.getItem('myListingPhones')
+          const phoneMap: Record<string, string> = phoneMapRaw ? JSON.parse(phoneMapRaw) : {}
+          if (sellForm.sellerPhone) {
+            phoneMap[data.listing.id] = sellForm.sellerPhone
+            localStorage.setItem('myListingPhones', JSON.stringify(phoneMap))
+          }
+        } catch {}
+      }
       // Listing saved to Turso. Refresh from API to get the canonical record.
       const refreshed = await apiFetchListings()
       setListings(refreshed)
@@ -1297,36 +1360,149 @@ export default function Home() {
     try {
       await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
     } catch {}
+    // Clear local state
     setCurrentUser(null)
     localStorage.removeItem('ec_user')
+    // If running in the APK (WebView), clear ALL cookies including the session cookie.
+    // Without this, the WebView's cookie jar keeps the session cookie and /api/auth/me
+    // still returns the user after "logout" — making it look like logout didn't work.
+    if (typeof window !== 'undefined' && (window as any).Android?.clearSession) {
+      ;(window as any).Android.clearSession()
+    }
+    // Reload the page to clear any in-memory state and force a fresh check
+    if (typeof window !== 'undefined') {
+      setTimeout(() => window.location.reload(), 100)
+    }
+  }
+
+  // GOOGLE SIGN-IN
+  const [googleSignInBusy, setGoogleSignInBusy] = useState(false)
+  const handleGoogleSignIn = async () => {
+    setGoogleSignInBusy(true)
+    try {
+      // Check if we're running inside the Android APK (native WebView)
+      // If so, use the native Google Sign-In (shows device account picker)
+      if (typeof window !== 'undefined' && (window as any).Android && (window as any).Android.googleSignIn) {
+        console.log('[google-signin] Using native Android Google Sign-In (account picker)')
+        // Listen for the result event from native code
+        const handler = (event: any) => {
+          window.removeEventListener('native-google-signin', handler)
+          window.removeEventListener('native-google-signin-error', errorHandler)
+          const detail = event.detail
+          if (detail.idToken) {
+            // We have an ID token — use the same server-side verification flow
+            completeGoogleSignIn(detail.idToken).catch(err => {
+              alert(`Google Sign-In failed: ${err?.message || err}`)
+            })
+          } else if (detail.email) {
+            // No ID token (DEFAULT_SIGN_IN) — use email-based sign-in
+            // This creates a session based on the email from the native account picker
+            completeNativeGoogleSignIn(detail.email, detail.name || detail.email.split('@')[0]).catch(err => {
+              alert(`Google Sign-In failed: ${err?.message || err}`)
+            })
+          }
+        }
+        const errorHandler = (event: any) => {
+          window.removeEventListener('native-google-signin', handler)
+          window.removeEventListener('native-google-signin-error', errorHandler)
+          const detail = event.detail
+          alert(`Google Sign-In failed: ${detail.message || 'Unknown error'}`)
+          setGoogleSignInBusy(false)
+        }
+        window.addEventListener('native-google-signin', handler)
+        window.addEventListener('native-google-signin-error', errorHandler)
+        // Trigger native sign-in (shows device account picker)
+        ;(window as any).Android.googleSignIn()
+        return // Don't set busy to false — wait for result
+      }
+      // Fallback: browser-based Firebase popup sign-in
+      const { signInWithGoogle } = await import('@/lib/firebase')
+      const result = await signInWithGoogle()
+      if (result.idToken) await completeGoogleSignIn(result.idToken)
+      else if (result.error && result.error !== '__redirect_in_progress__') alert(`Google Sign-In failed: ${result.error}`)
+    } catch (err: any) {
+      alert(`Google Sign-In failed: ${err?.message || err}.`)
+    } finally {
+      setGoogleSignInBusy(false)
+    }
+  }
+
+  // Native Google Sign-In (from APK) — email-based, no ID token
+  const completeNativeGoogleSignIn = async (email: string, name: string) => {
+    console.log('[native-google-signin] email:', email)
+    const res = await fetch('/api/auth/google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ nativeEmail: email, nativeName: name }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || `Sign-in failed (${res.status})`)
+    }
+    const data = await res.json()
+    const user: User = {
+      email: data.user.email,
+      name: data.user.name || data.user.email.split('@')[0],
+      username: data.user.username || '',
+      phone: data.user.phone || '',
+      role: (data.user.role as User['role']) || 'user',
+      createdAt: data.user.createdAt || new Date().toISOString(),
+    }
+    setCurrentUser(user)
+    localStorage.setItem('ec_user', JSON.stringify(user))
+    setShowLogin(false)
+    setShowRegister(false)
+    setGoogleSignInBusy(false)
+    if (user.role === 'admin') setView('admin')
+  }
+  const completeGoogleSignIn = async (idToken: string) => {
+    const res = await fetch('/api/auth/google', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ idToken }) })
+    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || `Google sign-in failed (${res.status})`) }
+    const data = await res.json()
+    const user: User = { email: data.user.email, name: data.user.name || data.user.email.split('@')[0], username: data.user.username || '', phone: data.user.phone || '', role: (data.user.role as User['role']) || 'user', createdAt: data.user.createdAt || new Date().toISOString() }
+    setCurrentUser(user); localStorage.setItem('ec_user', JSON.stringify(user)); setShowLogin(false); setShowRegister(false)
+    if (user.role === 'admin') setView('admin')
+  }
+
+  // PUBLIC VEHICLE REQUEST RESPONSE (no account required)
+  const [respondToRequestId, setRespondToRequestId] = useState<string | null>(null)
+  const [respondForm, setRespondForm] = useState({ name: '', phone: '', message: '' })
+  const [respondSubmitting, setRespondSubmitting] = useState(false)
+  const [respondSubmitted, setRespondSubmitted] = useState(false)
+  const openRespondToRequest = (req: VehicleRequest) => {
+    setRespondToRequestId(req.id)
+    setRespondForm({ name: currentUser?.name || '', phone: currentUser?.phone || '', message: `Hi, I have a ${req.vehicleType} matching your request for ${req.make || 'any make'} ${req.model || ''}. ${req.minBudget || req.maxBudget ? `I can sell within your budget (E${req.minBudget || '0'} - E${req.maxBudget || 'any'}).` : ''} Please contact me to discuss.` })
+    setRespondSubmitted(false)
+  }
+  const submitRespondToRequest = async () => {
+    if (!respondToRequestId) return
+    setRespondSubmitting(true)
+    try {
+      const res = await fetch('/api/request-responses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: respondToRequestId, responderName: respondForm.name, responderPhone: respondForm.phone, responderEmail: currentUser?.email || null, message: respondForm.message }) })
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || `API returned ${res.status}`) }
+      setRespondSubmitted(true); setRespondForm({ name: '', phone: '', message: '' })
+    } catch (err: any) { alert(`Failed to send response: ${err?.message || err}. Please try again.`) }
+    finally { setRespondSubmitting(false) }
   }
 
   // Load user from localStorage on mount + verify session cookie against server.
-  // The server is the source of truth — if the cookie is still alive we trust it
-  // over the localStorage snapshot (handles "logged in on this browser" across reloads
-  // and clears the local user if the session has expired).
   useEffect(() => {
     const saved = localStorage.getItem('ec_user')
-    if (saved) {
-      try { setCurrentUser(JSON.parse(saved)) } catch {}
-    }
+    if (saved) { try { setCurrentUser(JSON.parse(saved)) } catch {} }
     fetch('/api/auth/me', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.user) {
-          const u: User = {
-            email: data.user.email,
-            name: data.user.name || data.user.email.split('@')[0],
-            username: data.user.username || '', // capture username from /api/auth/me so it persists across reloads
-            phone: data.user.phone || '',
-            role: (data.user.role as User['role']) || 'user',
-            createdAt: data.user.createdAt || new Date().toISOString(),
-          }
-          setCurrentUser(u)
-          localStorage.setItem('ec_user', JSON.stringify(u))
+          const u: User = { email: data.user.email, name: data.user.name || data.user.email.split('@')[0], username: data.user.username || '', phone: data.user.phone || '', role: (data.user.role as User['role']) || 'user', createdAt: data.user.createdAt || new Date().toISOString() }
+          setCurrentUser(u); localStorage.setItem('ec_user', JSON.stringify(u))
         }
-      })
-      .catch(() => {})
+      }).catch(() => {})
+    if (typeof window !== 'undefined') {
+      import('@/lib/firebase').then(({ checkGoogleRedirectResult }) => checkGoogleRedirectResult())
+        .then(result => { if (result?.idToken) completeGoogleSignIn(result.idToken).catch(err => alert(`Google Sign-In could not be completed: ${err?.message || err}. Please try again.`)) })
+        .catch(() => {})
+    }
   }, [])
 
   // Vehicle Request form
@@ -1702,6 +1878,52 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-navy-fade-vertical text-slate-100 flex flex-col">
+      {/* PWA INSTALL BANNER — prompts user to install the app for full-screen
+          experience (no address bar). Only shown if browser fired beforeinstallprompt
+          event AND user hasn't dismissed it before. */}
+      {showInstallBanner && deferredPrompt && (
+        <div className="fixed bottom-4 left-4 right-4 z-[100] bg-gradient-to-r from-sky-600 to-sky-500 text-white rounded-xl shadow-2xl p-4 flex items-center gap-3 max-w-md mx-auto">
+          <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm">Install Eswatini Cars</p>
+            <p className="text-xs text-sky-100">Full-screen app, no address bar</p>
+          </div>
+          <button
+            onClick={async () => {
+              if (!deferredPrompt) return
+              deferredPrompt.prompt()
+              const { outcome } = await deferredPrompt.userChoice
+              setDeferredPrompt(null)
+              setShowInstallBanner(false)
+              if (outcome === 'accepted') {
+                try { localStorage.setItem('pwa_install_dismissed', '1') } catch {}
+              }
+            }}
+            className="bg-white text-sky-600 font-semibold text-xs px-3 py-2 rounded-lg hover:bg-sky-50 transition-colors whitespace-nowrap"
+          >
+            Install
+          </button>
+          <button
+            onClick={() => {
+              setShowInstallBanner(false)
+              try { localStorage.setItem('pwa_install_dismissed', '1') } catch {}
+            }}
+            className="text-white/80 hover:text-white p-1"
+            aria-label="Dismiss"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      )}
       {/* SCHEMA.ORG STRUCTURED DATA — so Google rich-results can index this marketplace */}
       <script
         type="application/ld+json"
@@ -2195,23 +2417,15 @@ export default function Home() {
             <h2 className="text-2xl font-bold mb-2 text-white flex items-center gap-2">
               <LayoutDashboard className="w-6 h-6 text-sky-400" /> My Posts
             </h2>
-            {!currentUser ? (
-              <Card className="border-dashed">
-                <CardContent className="p-8 text-center text-slate-500">
-                  <Users className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                  Please log in to manage the listings you have created.
-                  <div className="mt-3">
-                    <Button size="sm" onClick={() => setShowLogin(true)}>Login</Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : myListings.length === 0 ? (
+            {myListings.length === 0 ? (
               <Card className="border-dashed">
                 <CardContent className="p-8 text-center text-slate-500">
                   <Car className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                  You haven't posted any listings yet.
-                  <div className="mt-3">
-                    <Button size="sm" onClick={() => setSellOpen(true)}><Plus className="w-4 h-4 mr-1" /> Post your first vehicle</Button>
+                  {currentUser ? "You haven't posted any listings yet." : 'No listings found on this device yet.'}
+                  {!currentUser && <div className="mt-1 text-xs text-slate-600">Listings you post will appear here on this device.</div>}
+                  <div className="mt-3 flex gap-2 justify-center">
+                    <Button size="sm" onClick={() => setSellOpen(true)}><Plus className="w-4 h-4 mr-1" /> Post a vehicle</Button>
+                    {!currentUser && <Button size="sm" variant="outline" onClick={() => setShowLogin(true)}>Login to sync across devices</Button>}
                   </div>
                 </CardContent>
               </Card>
@@ -2919,8 +3133,8 @@ export default function Home() {
 
               {/* My Posts (logged-in only — shows listings the user created) */}
               <button
-                onClick={() => { if (currentUser) { setView('myposts') } else { setShowLogin(true) }; setDrawerOpen(false) }}
-                className={`w-full flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all text-left ${currentUser ? '' : 'opacity-50'}`}
+                onClick={() => { setView('myposts'); setDrawerOpen(false) }}
+                className="w-full flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all text-left"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-sky-500/20 flex items-center justify-center">
@@ -2928,10 +3142,10 @@ export default function Home() {
                   </div>
                   <div>
                     <div className="text-sm font-semibold text-white">My Posts</div>
-                    <div className="text-xs text-slate-400">{currentUser ? 'Listings you have created' : 'Login to view your posts'}</div>
+                    <div className="text-xs text-slate-400">{currentUser ? 'Listings you have created' : 'Listings posted on this device'}</div>
                   </div>
                 </div>
-                {currentUser && myListings.length > 0 && (
+                {myListings.length > 0 && (
                   <Badge className="bg-sky-500 text-white text-[10px]">{myListings.length}</Badge>
                 )}
               </button>
@@ -3097,7 +3311,12 @@ export default function Home() {
                     <b>Wants:</b> {req.vehicleType} · {req.make || 'Any make'} {req.model} · Budget: E{req.minBudget || '0'} - E{req.maxBudget || 'Any'} · {req.region}
                   </div>
                   {req.description && <p className="text-xs text-slate-500 italic">"{req.description}"</p>}
-                  <div className="text-[10px] text-slate-400 mt-2">{fmtDate(req.createdAt)}</div>
+                  <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-slate-700/50">
+                    <div className="text-[10px] text-slate-400">{fmtDate(req.createdAt)}</div>
+                    <Button size="sm" className="bg-emerald-500 text-white hover:bg-emerald-400 text-xs h-8" onClick={() => openRespondToRequest(req)}>
+                      <Handshake className="w-3.5 h-3.5 mr-1" /> I have this vehicle
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))
@@ -3250,6 +3469,37 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
+      {/* "I HAVE THIS VEHICLE" DIALOG — public, no account required */}
+      <Dialog open={!!respondToRequestId} onOpenChange={(o) => { if (!o) { setRespondToRequestId(null); setRespondSubmitted(false) } }}>
+        <DialogContent className="text-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Handshake className="w-5 h-5 text-emerald-500" /> I Have This Vehicle</DialogTitle>
+            <DialogDescription className="text-slate-300">Tell the admin you have a vehicle matching this request. The admin will review and connect you with the requester safely.</DialogDescription>
+          </DialogHeader>
+          {respondSubmitted ? (
+            <div className="text-center py-6 space-y-2">
+              <CheckCircle2 className="w-12 h-12 mx-auto text-emerald-500" />
+              <p className="font-semibold">Response sent!</p>
+              <p className="text-sm text-slate-500">Our admin team will review your response and contact you to verify the vehicle. Once verified, we'll connect you with the requester. This usually takes 24-48 hours.</p>
+              <Button onClick={() => { setRespondToRequestId(null); setRespondSubmitted(false) }}>Close</Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div><Label className="text-white">Your name *</Label><Input className="text-white" value={respondForm.name} onChange={e => setRespondForm({...respondForm, name: e.target.value})} placeholder="John Dlamini" /></div>
+              <div><Label className="text-white">Your phone *</Label><Input className="text-white" value={respondForm.phone} onChange={e => setRespondForm({...respondForm, phone: e.target.value})} placeholder="+268 7XXX XXXX" /></div>
+              <div><Label className="text-white">Your message *</Label><Textarea value={respondForm.message} onChange={e => setRespondForm({...respondForm, message: e.target.value})} placeholder="Describe the vehicle you have, its condition, price, etc." rows={5} /></div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setRespondToRequestId(null)}>Cancel</Button>
+                <Button className="bg-emerald-500 text-white hover:bg-emerald-400" disabled={!respondForm.name || !respondForm.phone || !respondForm.message || respondSubmitting} onClick={submitRespondToRequest}>
+                  {respondSubmitting ? 'Sending...' : 'Send to Admin'}
+                </Button>
+              </DialogFooter>
+              <p className="text-[10px] text-slate-500 text-center">Admin will mediate between you and the requester to keep both parties safe from scammers.</p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* LOGIN DIALOG */}
       <Dialog open={showLogin} onOpenChange={setShowLogin}>
         <DialogContent className="text-white">
@@ -3258,6 +3508,10 @@ export default function Home() {
             <DialogDescription className="text-slate-300">Login to save favorites and message admin. Don't have an account? Register below.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
+            <Button type="button" variant="outline" className="w-full bg-white text-slate-800 border-slate-300 hover:bg-slate-100 hover:text-slate-900" disabled={googleSignInBusy} onClick={handleGoogleSignIn}>
+              {googleSignInBusy ? (<><span className="inline-block w-4 h-4 mr-2 border-2 border-slate-400 border-t-slate-700 rounded-full animate-spin" />Connecting to Google…</>) : (<><svg className="w-4 h-4 mr-2" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.14 15.9-5.81l-7.73-6c-2.16 1.45-4.92 2.3-8.17 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>Continue with Google</>)}
+            </Button>
+            <div className="flex items-center gap-3 my-1"><div className="flex-1 h-px bg-slate-700" /><span className="text-[10px] text-slate-500 uppercase tracking-wide">or sign in with email</span><div className="flex-1 h-px bg-slate-700" /></div>
             <div><Label className="text-white">Email *</Label><Input className="text-white" type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} placeholder="john@email.com" /></div>
             {isAdminEmail(loginEmail) ? (
               // Admin emails use the shared admin PIN (sent automatically by submitLogin).
@@ -3322,6 +3576,10 @@ export default function Home() {
             </div>
           ) : (
             <div className="space-y-3">
+              <Button type="button" variant="outline" className="w-full bg-white text-slate-800 border-slate-300 hover:bg-slate-100 hover:text-slate-900" disabled={googleSignInBusy} onClick={handleGoogleSignIn}>
+                {googleSignInBusy ? (<><span className="inline-block w-4 h-4 mr-2 border-2 border-slate-400 border-t-slate-700 rounded-full animate-spin" />Connecting to Google…</>) : (<><svg className="w-4 h-4 mr-2" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.14 15.9-5.81l-7.73-6c-2.16 1.45-4.92 2.3-8.17 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>Sign up with Google</>)}
+              </Button>
+              <div className="flex items-center gap-3 my-1"><div className="flex-1 h-px bg-slate-700" /><span className="text-[10px] text-slate-500 uppercase tracking-wide">or register manually</span><div className="flex-1 h-px bg-slate-700" /></div>
               <div><Label className="text-white">Name *</Label><Input className="text-white" value={registerForm.name} onChange={e => setRegisterForm({...registerForm, name: e.target.value})} placeholder="John Dlamini" /></div>
               <div>
                 <Label className="text-white">Username <span className="text-slate-400 font-normal">(optional)</span></Label>

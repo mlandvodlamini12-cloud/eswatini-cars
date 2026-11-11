@@ -39,7 +39,10 @@ export async function POST(req: NextRequest) {
     } else {
       if (!password || password.length < 8) return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
       const user = await db.user.findUnique({ where: { email: normalizedEmail } })
-      if (!user || !user.passwordHash) return NextResponse.json({ error: 'Email not found. Please register first.' }, { status: 404 })
+      if (!user || !user.passwordHash) {
+        if (user && !user.passwordHash) return NextResponse.json({ error: 'This account uses Google Sign-In. Please use "Continue with Google".' }, { status: 401 })
+        return NextResponse.json({ error: 'Email not found. Please register first.' }, { status: 404 })
+      }
       if (user.blocked) return NextResponse.json({ error: 'Your account has been blocked. Contact admin.' }, { status: 403 })
       if (!bcrypt.compareSync(password, user.passwordHash)) return NextResponse.json({ error: 'Wrong password' }, { status: 401 })
     }

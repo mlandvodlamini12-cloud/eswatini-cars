@@ -79,8 +79,17 @@ public/Eswatini-Cars.apk
 *.aab
 *.idsig
 
-# --- Android APK build artifacts (CONTAINS KEYSTORE WITH PRIVATE KEY) ---
-android-apk/
+# --- Android APK build artifacts ---
+# Track source files (MainActivity.java, build.gradle, manifests) but ignore
+# keystore (private key) + machine-specific paths + build outputs.
+*.keystore
+android-apk/.gradle/
+android-apk/build/
+android-apk/app/build/
+android-apk/local.properties
+android-apk/*.apk
+android-apk/.idea/
+android-apk/*.iml
 tool-results/
 
 # --- Download folder (contains signed APKs, PDFs with secrets, zip backups) ---

@@ -1,0 +1,42 @@
+// Eswatini Cars — app module build.gradle
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'sz.co.eswatinicars.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "sz.co.eswatinicars.app"
+        minSdk 24          // Android 7.0 — covers ~98% of devices in Eswatini
+        targetSdk 34       // required for Play Store submission
+        versionCode 7
+        versionName "1.0.6"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
+                    'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    // AndroidX core
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.core:core:1.12.0'
+    implementation 'androidx.activity:activity:1.8.2'
+
+    // Google Play Services Auth — for GoogleSignInClient (account picker)
+    implementation 'com.google.android.gms:play-services-auth:20.7.0'
+
+    // WebView is part of the Android framework — no dependency needed
+}

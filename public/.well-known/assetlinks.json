@@ -1,12 +1,10 @@
-[
-  {
-    "relation": ["delegate_permission/common.handle_all_urls"],
-    "target": {
-      "namespace": "android_app",
-      "package_name": "app.netlify.magnificent_pastelito_a04324.twa",
-      "sha256_cert_fingerprints": [
-        "04:69:39:91:E4:88:17:6D:D6:B6:80:A5:7A:1E:D8:85:2F:49:EF:F6:BD:B9:67:7D:AF:CD:BC:60:57:62:73:2C"
-      ]
-    }
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "sz.co.eswatinicars.app",
+    "sha256_cert_fingerprints": [
+      "54:50:6B:98:B3:E5:EC:C1:B1:22:0F:D2:A7:D4:DD:15:26:54:D3:76:91:88:EE:B9:31:56:72:3A:9B:01:E7:64"
+    ]
   }
-]
+}]
