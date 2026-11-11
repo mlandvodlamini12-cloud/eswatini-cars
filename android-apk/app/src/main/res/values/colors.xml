@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Navy color matching the app's CSS --background: #0a1834 -->
-    <!-- Used for statusBarColor + navigationBarColor so the white status bar
+    <!-- Navy color matching the app CSS background 0a1834 -->
+    <!-- Used for statusBarColor and navigationBarColor so the white status bar
          icons (battery, time, notifications) become visible against the
          dark navy background, instead of being invisible on white. -->
     <color name="navy">#0a1834</color>
