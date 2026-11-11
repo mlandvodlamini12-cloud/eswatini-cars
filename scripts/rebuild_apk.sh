@@ -3,8 +3,14 @@
 # Safe to run after a sandbox recycle — re-downloads JDK + Android SDK if missing,
 # and recovers the keystore from Vercel encrypted env vars if missing.
 #
+# Usage:
+#   bash scripts/rebuild_apk.sh             # builds PRODUCTION flavor (default)
+#   bash scripts/rebuild_apk.sh production  # builds PRODUCTION flavor explicitly
+#   bash scripts/rebuild_apk.sh staging     # builds STAGING flavor (test app)
+#
 # Outputs:
-#   /home/z/my-project/download/Eswatini-Cars.apk  (signed, ready to install)
+#   production → /home/z/my-project/download/Eswatini-Cars.apk
+#   staging    → /home/z/my-project/download/Eswatini-Cars-TEST.apk
 #
 # Prerequisites:
 #   - Network access (downloads ~600MB on first run: JDK 17 + Android SDK)
@@ -14,6 +20,19 @@
 #     OR     VERCEL_TOKEN env var (to fetch the keystore from Vercel)
 #
 set -euo pipefail
+
+# === Flavor argument (production | staging) ===
+FLAVOR="${1:-production}"
+if [ "$FLAVOR" != "production" ] && [ "$FLAVOR" != "staging" ]; then
+  echo "ERROR: flavor must be 'production' or 'staging' (got: $FLAVOR)"
+  exit 1
+fi
+# Capitalize first letter for Gradle task name (production → Production)
+FLAVOR_CAP="$(printf '%s' "$FLAVOR" | sed 's/^./\U&/')"
+
+echo "========================================"
+echo " Building APK — flavor: $FLAVOR"
+echo "========================================"
 
 PROJECT_DIR=/home/z/my-project/android-apk
 DOWNLOAD_DIR=/home/z/my-project/download
@@ -126,13 +145,18 @@ APKSIGNER="$SDK_DIR/build-tools/34.0.0/apksigner"
 echo "sdk.dir=$SDK_DIR" > "$PROJECT_DIR/local.properties"
 
 # === Build ===
-echo "[3/5] Building unsigned release APK with Gradle..."
+echo "[3/5] Building unsigned ${FLAVOR} release APK with Gradle..."
 cd "$PROJECT_DIR"
-./gradlew assembleRelease --no-daemon
+./gradlew "assemble${FLAVOR_CAP}Release" --no-daemon
 
-UNSIGNED="$PROJECT_DIR/app/build/outputs/apk/release/app-release-unsigned.apk"
-ALIGNED=/tmp/app-release-aligned.apk
-SIGNED="$DOWNLOAD_DIR/Eswatini-Cars.apk"
+# Flavor-specific output paths
+UNSIGNED="$PROJECT_DIR/app/build/outputs/apk/${FLAVOR}/release/app-${FLAVOR}-release-unsigned.apk"
+ALIGNED=/tmp/app-${FLAVOR}-release-aligned.apk
+if [ "$FLAVOR" = "production" ]; then
+  SIGNED="$DOWNLOAD_DIR/Eswatini-Cars.apk"
+else
+  SIGNED="$DOWNLOAD_DIR/Eswatini-Cars-TEST.apk"
+fi
 
 if [ ! -f "$UNSIGNED" ]; then
   echo "ERROR: unsigned APK not found at $UNSIGNED"
@@ -157,12 +181,22 @@ rm -f "$SIGNED.idsig"
 
 echo ""
 echo "=========================================="
-echo " APK BUILD COMPLETE"
+echo " APK BUILD COMPLETE — flavor: $FLAVOR"
 echo "=========================================="
 echo " File:        $SIGNED"
 echo " Size:        $(du -h "$SIGNED" | cut -f1)"
-echo " Package:     sz.co.eswatinicars.app"
-echo " Version:     1.0.6 (code 7)"
+if [ "$FLAVOR" = "production" ]; then
+  echo " Package:     sz.co.eswatinicars.app"
+  echo " App name:    Eswatini Cars"
+  echo " Loads:       https://eswatini-cars.vercel.app/"
+else
+  echo " Package:     sz.co.eswatinicars.app.staging"
+  echo " App name:    EC [TEST]"
+  echo " Loads:       https://eswatini-cars-git-staging-eswatini-cars.vercel.app/"
+  echo ""
+  echo " ⚠ This is a TEST build — installs alongside the production app."
+  echo "   Do NOT distribute to end users."
+fi
 echo ""
 echo " Certificate fingerprints:"
 "$APKSIGNER" verify --print-certs "$SIGNED" 2>&1 | grep -E "SHA-1|SHA-256"

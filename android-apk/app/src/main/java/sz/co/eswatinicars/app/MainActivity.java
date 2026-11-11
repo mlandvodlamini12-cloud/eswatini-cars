@@ -39,9 +39,13 @@ import com.google.android.gms.tasks.Task;
 /**
  * Eswatini Cars — WebView wrapper with native Google Sign-In.
  *
- * Package: sz.co.eswatinicars.app
+ * Build flavors:
+ *   production → applicationId sz.co.eswatinicars.app,        loads eswatini-cars.vercel.app
+ *   staging    → applicationId sz.co.eswatinicars.app.staging, loads eswatini-cars-git-staging-...vercel.app
  *
- * Key fixes in this version (v7):
+ * The launch URL is read from BuildConfig.LAUNCH_URL (set per-flavor in build.gradle).
+ *
+ * Key fixes in this version:
  *   1. signOut() before getSignInIntent() — forces the account picker to show
  *      every time, instead of silently re-using the last signed-in account.
  *   2. clearSession() @JavascriptInterface — clears WebView cookies + cache
@@ -52,10 +56,12 @@ import com.google.android.gms.tasks.Task;
  *   - window.Android.googleSignIn()  → launches native Google account picker
  *   - window.Android.clearSession()  → wipes cookies + cache (called on logout)
  *   - window.Android.getAppVersion() → returns version name (for debugging)
+ *   - window.Android.getEnvironment() → returns "production" or "staging"
  */
 public class MainActivity extends AppCompatActivity {
 
-    private static final String LAUNCH_URL = "https://eswatini-cars.vercel.app/";
+    // LAUNCH_URL is set per-flavor in build.gradle → BuildConfig.LAUNCH_URL
+    private static final String LAUNCH_URL = sz.co.eswatinicars.app.BuildConfig.LAUNCH_URL;
     private static final String TAG = "EswatiniCars";
 
     private WebView webView;
@@ -267,6 +273,16 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception e) {
                 return "unknown";
             }
+        }
+
+        /**
+         * Returns "production" or "staging" — lets the web side know which
+         * APK flavor it's running in. Useful for showing a "TEST" banner in
+         * the staging app, or for analytics.
+         */
+        @JavascriptInterface
+        public String getEnvironment() {
+            return sz.co.eswatinicars.app.BuildConfig.FLAVOR;
         }
 
         @JavascriptInterface

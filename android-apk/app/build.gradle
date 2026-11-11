@@ -8,11 +8,36 @@ android {
     compileSdk 34
 
     defaultConfig {
-        applicationId "sz.co.eswatinicars.app"
+        // applicationId is now set per-flavor (see productFlavors below)
         minSdk 24          // Android 7.0 — covers ~98% of devices in Eswatini
         targetSdk 34       // required for Play Store submission
-        versionCode 8
-        versionName "1.0.7"
+        versionCode 9
+        versionName "1.1.0"
+    }
+
+    // === Product flavors — lets us build TWO APKs from the same source ===
+    // production: the real app users install (sz.co.eswatinicars.app)
+    // staging:    a separate test app (sz.co.eswatinicars.app.staging) that
+    //             loads the Vercel staging URL. Different applicationId means
+    //             it installs ALONGSIDE the production app — no overwrite.
+    flavorDimensions "environment"
+    productFlavors {
+        production {
+            dimension "environment"
+            applicationId "sz.co.eswatinicars.app"
+            // BuildConfig.LAUNCH_URL — read by MainActivity at runtime
+            buildConfigField "String", "LAUNCH_URL", "\"https://eswatini-cars.vercel.app/\""
+            // resValue generates a string resource that overrides strings.xml
+            resValue "string", "app_name", "Eswatini Cars"
+        }
+        staging {
+            dimension "environment"
+            applicationId "sz.co.eswatinicars.app.staging"
+            // Points at the Vercel preview deployment for the `staging` branch.
+            // Every push to staging updates this URL — test the latest code here.
+            buildConfigField "String", "LAUNCH_URL", "\"https://eswatini-cars-git-staging-eswatini-cars.vercel.app/\""
+            resValue "string", "app_name", "EC [TEST]"
+        }
     }
 
     buildTypes {
