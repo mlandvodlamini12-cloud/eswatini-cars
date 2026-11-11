@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 # Rebuild the Eswatini Cars Android APK from scratch.
-# Safe to run after a sandbox recycle — re-downloads JDK + Android SDK if missing.
+# Safe to run after a sandbox recycle — re-downloads JDK + Android SDK if missing,
+# and recovers the keystore from Vercel encrypted env vars if missing.
 #
 # Outputs:
 #   /home/z/my-project/download/Eswatini-Cars.apk  (signed, ready to install)
 #
 # Prerequisites:
 #   - Network access (downloads ~600MB on first run: JDK 17 + Android SDK)
-#   - /home/z/my-project/android.keystore (with alias 'ec-signing', pass 'eswatini123')
-#     If missing, the build will FAIL — keystores are gitignored for security.
+#   - EITHER /home/z/my-project/android.keystore (locally present)
+#     OR     Vercel env vars APK_KEYSTORE_BASE64 + APK_KEYSTORE_PASSWORD +
+#            APK_KEY_ALIAS + APK_KEY_PASSWORD (encrypted at rest on Vercel)
+#     OR     VERCEL_TOKEN env var (to fetch the keystore from Vercel)
 #
 set -euo pipefail
 
@@ -17,6 +20,71 @@ DOWNLOAD_DIR=/home/z/my-project/download
 KEYSTORE=/home/z/my-project/android.keystore
 ALIAS=ec-signing
 STOREPASS=eswatini123
+
+# === Vercel project info (for keystore recovery) ===
+VERCEL_TEAM_ID=${VERCEL_TEAM_ID:-team_kaqwxaOEa2FvSVHo3n9sSYOO}
+VERCEL_PROJECT_ID=${VERCEL_PROJECT_ID:-prj_j8kRtTXmiUqdiiZ85BdexeOqAGRt}
+
+# === Recover keystore from Vercel if missing ===
+if [ ! -f "$KEYSTORE" ]; then
+  echo "[0/5] Keystore missing — recovering from Vercel encrypted env vars..."
+  if [ -z "${VERCEL_TOKEN:-}" ]; then
+    echo "ERROR: $KEYSTORE is missing and VERCEL_TOKEN is not set."
+    echo "Either:"
+    echo "  1. Re-upload the android.keystore file to /home/z/my-project/"
+    echo "  2. Set VERCEL_TOKEN env var so this script can fetch it from Vercel"
+    exit 1
+  fi
+  # List env vars to find the IDs (Vercel API requires ID, not key name, for decrypt)
+  echo "  Looking up APK_KEYSTORE_BASE64 env var ID..."
+  KEYSTORE_ENV_ID=$(curl -sS -H "Authorization: Bearer $VERCEL_TOKEN" \
+    "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID/env?teamId=$VERCEL_TEAM_ID" \
+    | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+for e in d.get('envs', []):
+    if e.get('key') == 'APK_KEYSTORE_BASE64':
+        print(e['id'])
+        break
+")
+  if [ -z "$KEYSTORE_ENV_ID" ]; then
+    echo "ERROR: APK_KEYSTORE_BASE64 env var not found on Vercel."
+    exit 1
+  fi
+  # Fetch the decrypted value
+  echo "  Fetching + decrypting keystore (id=$KEYSTORE_ENV_ID)..."
+  KEYSTORE_B64=$(curl -sS -H "Authorization: Bearer $VERCEL_TOKEN" \
+    "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID/env/$KEYSTORE_ENV_ID?decrypt=true&teamId=$VERCEL_TEAM_ID" \
+    | python3 -c "import sys,json; print(json.load(sys.stdin).get('value',''))")
+  if [ -z "$KEYSTORE_B64" ]; then
+    echo "ERROR: Could not decrypt APK_KEYSTORE_BASE64 from Vercel."
+    exit 1
+  fi
+  echo "  Decoding base64 → $KEYSTORE..."
+  echo "$KEYSTORE_B64" | base64 -d > "$KEYSTORE"
+  chmod 600 "$KEYSTORE"
+  # Also fetch the password + alias by looking up their IDs
+  for envkey in APK_KEYSTORE_PASSWORD APK_KEY_ALIAS; do
+    envid=$(curl -sS -H "Authorization: Bearer $VERCEL_TOKEN" \
+      "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID/env?teamId=$VERCEL_TEAM_ID" \
+      | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+for e in d.get('envs', []):
+    if e.get('key') == '$envkey':
+        print(e['id'])
+        break
+")
+    val=$(curl -sS -H "Authorization: Bearer $VERCEL_TOKEN" \
+      "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID/env/$envid?decrypt=true&teamId=$VERCEL_TEAM_ID" \
+      | python3 -c "import sys,json; print(json.load(sys.stdin).get('value',''))")
+    case "$envkey" in
+      APK_KEYSTORE_PASSWORD) STOREPASS="$val" ;;
+      APK_KEY_ALIAS)         ALIAS="$val" ;;
+    esac
+  done
+  echo "  ✅ Keystore recovered (alias=$ALIAS, $(wc -c < "$KEYSTORE") bytes)"
+fi
 
 # === JDK 17 (Temurin) ===
 JDK_DIR=/home/z/jdk17
@@ -37,13 +105,16 @@ SDK_DIR=/home/z/android-sdk
 if [ ! -x "$SDK_DIR/build-tools/34.0.0/apksigner" ]; then
   echo "[2/5] Installing Android SDK + build-tools 34..."
   mkdir -p "$SDK_DIR/cmdline-tools"
-  curl -fsSL -o /tmp/cmdline-tools.zip \
-    "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
-  unzip -q /tmp/cmdline-tools.zip -d "$SDK_DIR/cmdline-tools/"
-  mv "$SDK_DIR/cmdline-tools/cmdline-tools" "$SDK_DIR/cmdline-tools/latest"
-  rm /tmp/cmdline-tools.zip
+  if [ ! -x "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" ]; then
+    rm -rf "$SDK_DIR/cmdline-tools/latest" "$SDK_DIR/cmdline-tools/cmdline-tools"
+    curl -fsSL -o /tmp/cmdline-tools.zip \
+      "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
+    unzip -q /tmp/cmdline-tools.zip -d "$SDK_DIR/cmdline-tools/"
+    mv "$SDK_DIR/cmdline-tools/cmdline-tools" "$SDK_DIR/cmdline-tools/latest"
+    rm /tmp/cmdline-tools.zip
+  fi
   export ANDROID_HOME="$SDK_DIR"
-  yes | "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1
+  yes | "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
   "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" \
     "platform-tools" "platforms;android-34" "build-tools;34.0.0" >/dev/null 2>&1
 fi
