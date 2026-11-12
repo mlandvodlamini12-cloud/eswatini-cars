@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
-import { Car, Truck, Bike, Wrench, Search, Plus, Shield, Eye, Phone, MapPin, Fuel, Settings2, Gauge, TrendingUp, Handshake, CheckCircle2, Heart, MessageSquare, LayoutDashboard, Lock, X, Upload, Star, Clock, DollarSign, Send, ArrowLeft, Bus, Sparkles, Zap, ShieldCheck, Award, Trash2, Pencil, UserPlus, UserMinus, Bell, Mail, Users, LogOut, UserCog, Caravan, Tractor, FileText, Ban, Megaphone, History, TrendingDown, ChevronUp, ChevronDown } from 'lucide-react'
+import { Car, Truck, Bike, Wrench, Search, Plus, Shield, Eye, Phone, MapPin, Fuel, Settings2, Gauge, TrendingUp, Handshake, CheckCircle2, Heart, MessageSquare, LayoutDashboard, Lock, X, Upload, Star, Clock, DollarSign, Send, ArrowLeft, Bus, Sparkles, Zap, ShieldCheck, Award, Trash2, Pencil, UserPlus, UserMinus, Bell, Mail, Users, LogOut, UserCog, Caravan, Tractor, FileText, Ban, Megaphone, History, TrendingDown, ChevronUp, ChevronDown, Save } from 'lucide-react'
 
 type Listing = {
   id: string
@@ -4536,11 +4536,21 @@ function ReplyBox({ onSend, placeholder = "Type your reply...", disabled = false
 
 // === BroadcastsTab — Admin broadcasts compose + list. Posts to /api/broadcasts
 // and lists existing broadcasts (newest first) with a quick "audience" badge.
+// Each broadcast row has Edit + Delete buttons.
+//   - Edit opens a dialog pre-filled with the broadcast's current values,
+//     submits a PATCH to /api/broadcasts/[id]
+//   - Delete asks for confirmation, then DELETEs /api/broadcasts/[id]
+//     (truly removes the broadcast + its UserRead records, not just archive)
 function BroadcastsTab() {
   const [form, setForm] = useState({ title: '', message: '', audience: 'all' })
   const [broadcasts, setBroadcasts] = useState<Array<{ id: string; title: string; message: string; audience: string; status: string; createdAt: string }>>([])
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  // Edit dialog state: when editTarget is non-null, the edit dialog is open
+  const [editTarget, setEditTarget] = useState<{ id: string; title: string; message: string; audience: string } | null>(null)
+  const [editForm, setEditForm] = useState({ title: '', message: '', audience: 'all' })
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const fetchBroadcasts = useCallback(async () => {
     setLoading(true)
@@ -4575,6 +4585,65 @@ function BroadcastsTab() {
       alert(`Error: ${err.message}`)
     }
     setSending(false)
+  }
+
+  // Open the edit dialog with a broadcast's current values
+  const openEdit = (b: { id: string; title: string; message: string; audience: string }) => {
+    setEditTarget(b)
+    setEditForm({ title: b.title, message: b.message, audience: b.audience })
+  }
+
+  const closeEdit = () => {
+    setEditTarget(null)
+    setEditForm({ title: '', message: '', audience: 'all' })
+  }
+
+  // Submit the edit — PATCH /api/broadcasts/[id]
+  const handleEditSave = async () => {
+    if (!editTarget) return
+    if (!editForm.title || !editForm.message) return
+    setSavingEdit(true)
+    try {
+      const res = await fetch(`/api/broadcasts/${editTarget.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(editForm),
+      })
+      if (res.ok) {
+        closeEdit()
+        await fetchBroadcasts()
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Failed to update broadcast')
+      }
+    } catch (err: any) {
+      alert(`Error: ${err.message}`)
+    }
+    setSavingEdit(false)
+  }
+
+  // Delete a broadcast — DELETE /api/broadcasts/[id]
+  const handleDelete = async (id: string, title: string) => {
+    // Confirm before deleting (uses native browser confirm — simple + reliable)
+    const ok = window.confirm(`Delete this broadcast?\n\n"${title}"\n\nThis will permanently remove it from all users' views. This cannot be undone.`)
+    if (!ok) return
+    setDeletingId(id)
+    try {
+      const res = await fetch(`/api/broadcasts/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      if (res.ok) {
+        await fetchBroadcasts()
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Failed to delete broadcast')
+      }
+    } catch (err: any) {
+      alert(`Error: ${err.message}`)
+    }
+    setDeletingId(null)
   }
 
   return (
@@ -4614,7 +4683,7 @@ function BroadcastsTab() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Active Broadcasts</CardTitle>
-          <CardDescription>{broadcasts.length} broadcast{broadcasts.length === 1 ? '' : 's'} visible to users.</CardDescription>
+          <CardDescription>{broadcasts.length} broadcast{broadcasts.length === 1 ? '' : 's'} visible to users. Tap edit or delete on any to modify.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           {loading ? (
@@ -4625,19 +4694,68 @@ function BroadcastsTab() {
             broadcasts.map(b => (
               <div key={b.id} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
                 <div className="flex items-center justify-between gap-2 mb-1">
-                  <div className="font-semibold text-sm">{b.title}</div>
-                  <div className="flex items-center gap-1">
+                  <div className="font-semibold text-sm flex-1 min-w-0 truncate">{b.title}</div>
+                  <div className="flex items-center gap-1 shrink-0">
                     <Badge className="bg-amber-500/20 text-amber-300 text-[10px] capitalize">{b.audience}</Badge>
                     <Badge className="bg-emerald-500/20 text-emerald-300 text-[10px] capitalize">{b.status}</Badge>
                   </div>
                 </div>
-                <p className="text-xs text-slate-600 dark:text-slate-400">{b.message}</p>
-                <div className="text-[10px] text-slate-400 mt-1">{fmtDate(b.createdAt)}</div>
+                <p className="text-xs text-slate-600 dark:text-slate-400 break-words">{b.message}</p>
+                <div className="flex items-center justify-between mt-2">
+                  <div className="text-[10px] text-slate-400">{fmtDate(b.createdAt)}</div>
+                  <div className="flex items-center gap-1">
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-sky-300 hover:text-sky-200 hover:bg-sky-500/10" onClick={() => openEdit(b)} disabled={deletingId === b.id}>
+                      <Pencil className="w-3 h-3 mr-1" /> Edit
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-red-400 hover:text-red-300 hover:bg-red-500/10" onClick={() => handleDelete(b.id, b.title)} disabled={deletingId === b.id}>
+                      <Trash2 className="w-3 h-3 mr-1" /> {deletingId === b.id ? 'Deleting...' : 'Delete'}
+                    </Button>
+                  </div>
+                </div>
               </div>
             ))
           )}
         </CardContent>
       </Card>
+
+      {/* EDIT DIALOG — opens when editTarget is set */}
+      {editTarget && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" onClick={closeEdit}>
+          <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-slate-700">
+              <div className="font-semibold text-white text-base">Edit Broadcast</div>
+              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-400 hover:text-white" onClick={closeEdit}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            <div className="p-4 space-y-3">
+              <div>
+                <Label className="text-xs text-slate-300">Title *</Label>
+                <Input className="text-white bg-slate-800 border-slate-700" value={editForm.title} onChange={e => setEditForm({ ...editForm, title: e.target.value })} placeholder="Broadcast title" />
+              </div>
+              <div>
+                <Label className="text-xs text-slate-300">Message *</Label>
+                <Textarea className="text-white bg-slate-800 border-slate-700" value={editForm.message} onChange={e => setEditForm({ ...editForm, message: e.target.value })} placeholder="Broadcast message" rows={3} />
+              </div>
+              <div>
+                <Label className="text-xs text-slate-300">Audience</Label>
+                <select value={editForm.audience} onChange={e => setEditForm({ ...editForm, audience: e.target.value })} className="w-full bg-slate-800 border border-slate-700 text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500">
+              <option value="all">All visitors</option>
+              <option value="registered">Registered users only</option>
+            </select>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 p-4 border-t border-slate-700">
+              <Button size="sm" variant="ghost" className="text-slate-400 hover:text-white" onClick={closeEdit} disabled={savingEdit}>
+                Cancel
+              </Button>
+              <Button size="sm" className="bg-sky-500 text-white hover:bg-sky-400" disabled={!editForm.title || !editForm.message || savingEdit} onClick={handleEditSave}>
+                <Save className="w-4 h-4 mr-1" /> {savingEdit ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
