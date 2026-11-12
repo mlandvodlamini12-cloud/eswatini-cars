@@ -4739,13 +4739,10 @@ function BroadcastsTab() {
               </div>
               <div>
                 <Label className="text-xs text-slate-300">Audience</Label>
-                <Select value={editForm.audience} onValueChange={v => setEditForm({ ...editForm, audience: v })}>
-                  <SelectTrigger className="bg-slate-800 border-slate-700 text-white"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All visitors</SelectItem>
-                    <SelectItem value="registered">Registered users only</SelectItem>
-                  </SelectContent>
-                </Select>
+                <select value={editForm.audience} onChange={e => setEditForm({ ...editForm, audience: e.target.value })} className="w-full bg-slate-800 border border-slate-700 text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500">
+              <option value="all">All visitors</option>
+              <option value="registered">Registered users only</option>
+            </select>
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 p-4 border-t border-slate-700">
