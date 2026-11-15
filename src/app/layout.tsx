@@ -139,19 +139,22 @@ export default function RootLayout({
             z-index: 9999;
           }
           #initial-loader .loader-logo {
-            width: 64px;
-            height: 64px;
+            width: 120px;
+            height: 120px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%);
+            overflow: hidden;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 28px;
-            font-weight: 700;
-            color: #0a1834;
-            letter-spacing: -0.04em;
             margin-bottom: 20px;
-            box-shadow: 0 8px 32px rgba(14, 165, 233, 0.3);
+            box-shadow: 0 0 40px rgba(56, 189, 248, 0.4);
+            border: 3px solid #38bdf8;
+          }
+          #initial-loader .loader-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
           }
           #initial-loader .loader-text {
             font-size: 14px;
@@ -210,7 +213,7 @@ export default function RootLayout({
           so the user sees the actual app.
         */}
         <div id="initial-loader">
-          <div class="loader-logo">EC</div>
+          <div class="loader-logo"><img src="/app-icon.png" alt="" /></div>
           <div class="loader-text">ESWATINI CARS</div>
           <div class="loader-subtext">Managed Vehicle Marketplace</div>
           <div class="loader-spinner"></div>

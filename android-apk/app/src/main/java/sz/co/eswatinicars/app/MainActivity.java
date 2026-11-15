@@ -172,6 +172,13 @@ public class MainActivity extends AppCompatActivity {
         }
         CookieManager.getInstance().setAcceptCookie(true);
 
+        // Set WebView background to navy (#0a1834) so there's no white flash
+        // between the native splash screen and the web content loading.
+        // Without this, the WebView shows a white background while fetching
+        // the page from Vercel — creating a visible "white flash" between
+        // the navy splash and the navy web loader.
+        webView.setBackgroundColor(0xFF0A1834);
+
         // JS bridge — exposed as window.Android
         webView.addJavascriptInterface(new NativeBridge(), "Android");
 
