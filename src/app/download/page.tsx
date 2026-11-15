@@ -165,9 +165,79 @@ export default function DownloadPage() {
             font-size: 12px;
             color: #5a6a85;
           }
-          .footer a {
+          .footer a, .footer button {
             color: #8a9bb5;
             text-decoration: none;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: inherit;
+            padding: 0;
+          }
+          /* Modal overlay for Terms/Privacy popups */
+          .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+          }
+          .modal-overlay.active {
+            display: flex;
+          }
+          .modal-content {
+            background: #0a1834;
+            border: 1px solid rgba(255, 200, 50, 0.3);
+            border-radius: 20px;
+            width: 100%;
+            max-width: 500px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+          }
+          .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          }
+          .modal-title {
+            color: #ffc832;
+            font-size: 18px;
+            font-weight: bold;
+          }
+          .modal-close {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: #fff;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .modal-close:active {
+            background: rgba(255, 255, 255, 0.2);
+          }
+          .modal-body {
+            overflow-y: auto;
+            flex: 1;
+            padding: 0;
+          }
+          .modal-body iframe {
+            width: 100%;
+            height: 100%;
+            min-height: 400px;
+            border: none;
           }
         `}</style>
       </head>
@@ -226,15 +296,53 @@ export default function DownloadPage() {
             </ol>
           </div>
 
-          {/* Footer */}
-          <div className="footer">
-            <p>Made in Eswatini</p>
-            <p style={{ marginTop: 4 }}>
-              <a href="/">Browse listings</a> ·{' '}
-              <a href="/terms">Terms</a> ·{' '}
-              <a href="/privacy">Privacy</a>
-            </p>
-          </div>
+          {/* Footer + Modal — plain HTML to avoid React SSR issues with onclick handlers */}
+          <div dangerouslySetInnerHTML={{ __html: `
+            <div class="footer">
+              <p>Made in Eswatini</p>
+              <p style="margin-top: 4px;">
+                <a href="/">Browse listings</a> ·
+                <button onclick="openModal('terms')" style="color:#8a9bb5;background:none;border:none;cursor:pointer;font-size:12px;font-family:inherit;padding:0;">Terms</button> ·
+                <button onclick="openModal('privacy')" style="color:#8a9bb5;background:none;border:none;cursor:pointer;font-size:12px;font-family:inherit;padding:0;">Privacy</button>
+              </p>
+            </div>
+
+            <div id="legalModal" class="modal-overlay" onclick="closeModal()">
+              <div class="modal-content" onclick="event.stopPropagation()">
+                <div class="modal-header">
+                  <span class="modal-title" id="modalTitle">Terms & Conditions</span>
+                  <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div class="modal-body">
+                  <iframe id="modalFrame" src="" title="Legal document"></iframe>
+                </div>
+              </div>
+            </div>
+
+            <script>
+              function openModal(type) {
+                var overlay = document.getElementById('legalModal');
+                var frame = document.getElementById('modalFrame');
+                var title = document.getElementById('modalTitle');
+                if (type === 'terms') {
+                  frame.src = '/terms';
+                  title.textContent = 'Terms & Conditions';
+                } else if (type === 'privacy') {
+                  frame.src = '/privacy';
+                  title.textContent = 'Privacy Policy';
+                }
+                overlay.classList.add('active');
+              }
+              function closeModal() {
+                var overlay = document.getElementById('legalModal');
+                overlay.classList.remove('active');
+                document.getElementById('modalFrame').src = '';
+              }
+              document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') closeModal();
+              });
+            </script>
+          `}} />
         </div>
       </body>
     </html>
