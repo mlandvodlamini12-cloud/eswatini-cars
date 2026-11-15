@@ -1,7 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Splash screen: full-screen PNG with navy background + large circular
-     app logo with sky-blue glow. Used as windowBackground in the theme.
-     gravity=fill stretches the image to fill the entire screen. -->
-<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
-    android:src="@drawable/splash_image"
-    android:gravity="fill" />
+<!-- Splash screen: navy color fills the entire screen + large circular
+     app logo centered with sky-blue glow.
+     
+     Using a layer-list instead of a full-screen PNG because:
+     - The navy color fills ANY screen size perfectly (no stretching)
+     - The logo bitmap is centered (no distortion)
+     - Matches the web loader's appearance exactly -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Navy background fills the entire screen -->
+    <item android:drawable="@color/navy" />
+    <!-- Large circular logo centered with sky-blue glow -->
+    <item>
+        <bitmap
+            android:src="@drawable/splash_logo"
+            android:gravity="center"
+            android:tileMode="disabled" />
+    </item>
+</layer-list>
