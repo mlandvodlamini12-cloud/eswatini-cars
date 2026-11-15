@@ -11,7 +11,11 @@
          were also white by default, so icons were invisible against white.
          Navy background + white icons = icons visible. -->
     <style name="Theme.EswatiniCars" parent="Theme.AppCompat.Light.NoActionBar">
-        <item name="android:windowBackground">@android:color/white</item>
+        <!-- windowBackground is the splash screen: navy background with the
+             app logo centered. Previously this was white (showed a white
+             screen with a tiny icon on launch). Now it shows the full
+             navy + logo splash while the WebView loads. -->
+        <item name="android:windowBackground">@drawable/splash_background</item>
         <item name="android:statusBarColor">@color/navy</item>
         <item name="android:navigationBarColor">@color/navy</item>
         <!-- windowLightStatusBar=false means status bar icons are WHITE

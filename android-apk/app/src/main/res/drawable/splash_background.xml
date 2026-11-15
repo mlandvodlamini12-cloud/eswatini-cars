@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Splash screen background: navy color with the app logo centered.
+     Used as windowBackground in the theme so the app shows this
+     full-screen splash while the WebView loads. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Navy background fills the entire screen -->
+    <item android:drawable="@color/navy" />
+    <!-- App logo centered, large (fills ~40% of screen width) -->
+    <item>
+        <bitmap
+            android:src="@drawable/splash_logo"
+            android:gravity="center"
+            android:tileMode="disabled" />
+    </item>
+</layer-list>

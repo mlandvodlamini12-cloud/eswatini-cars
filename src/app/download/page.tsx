@@ -37,8 +37,8 @@ export default function DownloadPage() {
             text-align: center;
           }
           .logo {
-            width: 100px;
-            height: 100px;
+            width: 120px;
+            height: 120px;
             border-radius: 50%;
             margin: 0 auto 24px;
             display: flex;
@@ -47,9 +47,13 @@ export default function DownloadPage() {
             background: linear-gradient(135deg, #1e3a6f, #0a1834);
             border: 3px solid #ffc832;
             box-shadow: 0 0 30px rgba(255, 200, 50, 0.3);
-            font-size: 36px;
-            font-weight: bold;
-            color: #ffc832;
+            overflow: hidden;
+          }
+          .logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
           }
           h1 {
             font-size: 28px;
@@ -244,7 +248,9 @@ export default function DownloadPage() {
       <body>
         <div className="container">
           {/* Logo */}
-          <div className="logo">EC</div>
+          <div className="logo">
+            <img src="/app-icon.png" alt="Eswatini Cars logo" />
+          </div>
 
           {/* Title */}
           <h1>Eswatini Cars</h1>
