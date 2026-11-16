@@ -14,6 +14,7 @@ import LoginScreen from './src/screens/LoginScreen'
 import RegisterScreen from './src/screens/RegisterScreen'
 import ProfileScreen from './src/screens/ProfileScreen'
 import SellScreen from './src/screens/SellScreen'
+import MessagesScreen from './src/screens/MessagesScreen'
 
 import { User, checkSession, logout as authLogout, getStoredUser } from './src/auth'
 
@@ -137,8 +138,19 @@ export default function App() {
             options={{ tabBarIcon: ({ color, size }) => <Ionicons name="add-circle" color={color} size={size} />, tabBarLabel: 'Sell' }}>
             {(props: any) => <SellScreen {...props} user={user} onListingCreated={() => props.navigation.navigate('BrowseTab')} />}
           </Tab.Screen>
-          <Tab.Screen name="MessagesTab" component={PlaceholderView}
-            options={{ tabBarIcon: ({ color, size }) => <Ionicons name="chatbubble" color={color} size={size} />, tabBarLabel: 'Messages' }} />
+          <Tab.Screen name="MessagesTab"
+            options={{ tabBarIcon: ({ color, size }) => <Ionicons name="chatbubble" color={color} size={size} />, tabBarLabel: 'Messages' }}>
+            {(props: any) => (
+              <MessagesScreen
+                {...props}
+                user={user}
+                onLoginPress={() => {
+                  // Navigate to Profile tab which has the Login screen
+                  props.navigation.navigate('ProfileTab', { screen: 'Login' })
+                }}
+              />
+            )}
+          </Tab.Screen>
           <Tab.Screen name="ProfileTab"
             options={{ tabBarIcon: ({ color, size }) => <Ionicons name="person" color={color} size={size} />, tabBarLabel: 'Profile' }}>
             {(props: any) => <ProfileStack {...props} user={user} onLogin={handleLogin} onLogout={handleLogout} />}
