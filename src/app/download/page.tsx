@@ -7,7 +7,7 @@ export const dynamic = 'force-static'
 // later (e.g., eswatinicars.com), this page is automatically served
 // at eswatinicars.com/download — no code changes needed.
 
-const APK_URL = 'https://github.com/mlandvodlamini12-cloud/eswatini-cars/releases/download/v1.1.1/Eswatini-Cars.apk'
+const APK_URL = 'https://github.com/mlandvodlamini12-cloud/eswatini-cars/releases/download/v1.2.0/Eswatini-Cars.apk'
 const APK_VERSION = '1.1.1'
 const APK_SIZE = '3.3 MB'
 
