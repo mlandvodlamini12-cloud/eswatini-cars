@@ -16,8 +16,8 @@ android {
         // applicationId is now set per-flavor (see productFlavors below)
         minSdk 24          // Android 7.0 — covers ~98% of devices in Eswatini
         targetSdk 34       // required for Play Store submission
-        versionCode 10
-        versionName "1.1.1"
+        versionCode 11
+        versionName "1.2.0"
     }
 
     // === Product flavors — lets us build TWO APKs from the same source ===
