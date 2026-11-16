@@ -11,7 +11,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#0a1834"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "sz.co.eswatinicars.app"
@@ -34,6 +36,9 @@
       "eas": {
         "projectId": ""
       }
-    }
+    },
+    "plugins": [
+      "expo-splash-screen"
+    ]
   }
 }
