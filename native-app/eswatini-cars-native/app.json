@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Eswatini Cars",
-    "slug": "eswatini-cars",
+    "slug": "eswatini-cars-",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -34,7 +34,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": ""
+        "projectId": "5a1dc35b-8129-4bfe-b70a-6586e8023cd4"
       }
     },
     "plugins": [
