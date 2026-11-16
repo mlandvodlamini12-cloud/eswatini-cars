@@ -13,6 +13,7 @@ import CarDetailScreen from './src/screens/CarDetailScreen'
 import LoginScreen from './src/screens/LoginScreen'
 import RegisterScreen from './src/screens/RegisterScreen'
 import ProfileScreen from './src/screens/ProfileScreen'
+import SellScreen from './src/screens/SellScreen'
 
 import { User, checkSession, logout as authLogout, getStoredUser } from './src/auth'
 
@@ -132,8 +133,10 @@ export default function App() {
             options={{ tabBarIcon: ({ color, size }) => <Ionicons name="grid" color={color} size={size} />, tabBarLabel: 'Browse' }} />
           <Tab.Screen name="SearchTab" component={SearchStack}
             options={{ tabBarIcon: ({ color, size }) => <Ionicons name="search" color={color} size={size} />, tabBarLabel: 'Search' }} />
-          <Tab.Screen name="SellTab" component={PlaceholderView}
-            options={{ tabBarIcon: ({ color, size }) => <Ionicons name="add-circle" color={color} size={size} />, tabBarLabel: 'Sell' }} />
+          <Tab.Screen name="SellTab"
+            options={{ tabBarIcon: ({ color, size }) => <Ionicons name="add-circle" color={color} size={size} />, tabBarLabel: 'Sell' }}>
+            {(props: any) => <SellScreen {...props} user={user} onListingCreated={() => props.navigation.navigate('BrowseTab')} />}
+          </Tab.Screen>
           <Tab.Screen name="MessagesTab" component={PlaceholderView}
             options={{ tabBarIcon: ({ color, size }) => <Ionicons name="chatbubble" color={color} size={size} />, tabBarLabel: 'Messages' }} />
           <Tab.Screen name="ProfileTab"
