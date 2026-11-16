@@ -1,0 +1,8 @@
+{
+  "tag_name": "v1.1.1",
+  "target_commitish": "main",
+  "name": "Eswatini Cars v1.1.1 — Status bar fix (navy background, visible icons)",
+  "body": "## What's fixed in v1.1.1\n\n### Status bar icons now visible\n\nIn v1.1.0, the status bar (top area with battery, time, notifications) was masked white and the icons were invisible. This was because:\n- `statusBarColor` was set to white\n- Status bar icons are white by default\n- White icons on white background = invisible\n\n**Fix:** Changed `statusBarColor` to navy (#0a1834) — matching the app's CSS header color. Now:\n- Status bar background = navy (matches the app header)\n- Status bar icons = white (visible against navy)\n- The status bar blends seamlessly with the app's navy header\n\nThis was tested in the staging APK (staging-v1.1.1) and confirmed working before publishing to production.\n\n### Install\n\n1. Download the `Eswatini-Cars.apk` asset below\n2. Install it over your current v1.1.0 (no uninstall needed — same package, same signature, higher version code)\n3. Open Eswatini Cars — the status bar should now be navy with visible white icons\n\n### Verification\n\n- Package: sz.co.eswatinicars.app\n- Version: 1.1.1 (versionCode 10)\n- Size: 3.30 MB\n- Signed with SHA-1 69:DF:80:0E:83:22:DA:59:60:1E:E7:3F:55:EC:ED:FB:2C:75:50:B8 (same keystore as all previous versions)\n- This is a NATIVE-only fix (styles.xml + colors.xml) — no website changes",
+  "draft": false,
+  "prerelease": false
+}

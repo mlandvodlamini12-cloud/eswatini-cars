@@ -1,0 +1,8 @@
+{
+  "tag_name": "staging-v1.1.1",
+  "target_commitish": "staging",
+  "name": "Eswatini Cars [TEST] v1.1.1 — Status bar fix (navy background)",
+  "body": "## TEST BUILD — status bar fix\n\n### The bug\nIn v1.1.0, the status bar (top area with battery, time, notifications) was masked white and the icons were invisible. This was because:\n- `statusBarColor` was set to white\n- Status bar icons are white by default\n- White icons on white background = invisible\n\n### The fix\nChanged `statusBarColor` to navy (#0a1834) — matching the app's CSS header color. Now:\n- Status bar background = navy (matches the app header)\n- Status bar icons = white (default for dark backgrounds)\n- White icons on navy = visible ✅\n\n### How to test\n1. Install this APK over the previous EC [TEST] app (same package, just an update)\n2. Open the EC [TEST] app\n3. Look at the top of the screen — the status bar should now be navy blue with visible white icons (battery, time, notifications)\n4. The status bar should blend with the app's navy header (no more white strip at the top)\n\n### Verification\n- Package: sz.co.eswatinicars.app.staging\n- Same keystore (SHA-1 69:DF:80...)\n- This is a NATIVE-only fix (styles.xml + colors.xml) — no website changes",
+  "draft": false,
+  "prerelease": true
+}
