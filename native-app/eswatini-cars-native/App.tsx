@@ -75,14 +75,27 @@ export default function App() {
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    // On app start: check if we have a stored session
+    // On app start: show the app IMMEDIATELY using stored data.
+    // Check the session silently in the background — no loading spinner.
     (async () => {
       const stored = await getStoredUser()
-      if (stored) setUser(stored)
-      // Verify the session is still valid
-      const validUser = await checkSession()
-      setUser(validUser) // null if expired
-      setReady(true)
+      if (stored) {
+        // User found in storage → show the app INSTANTLY
+        setUser(stored)
+        setReady(true)
+        // Verify session in the background (silent, no UI blocking)
+        checkSession().then(validUser => {
+          if (!validUser) {
+            // Session expired — log out silently
+            setUser(null)
+          } else {
+            setUser(validUser)
+          }
+        })
+      } else {
+        // No stored user → show app immediately (logged-out state)
+        setReady(true)
+      }
     })()
   }, [])
 
