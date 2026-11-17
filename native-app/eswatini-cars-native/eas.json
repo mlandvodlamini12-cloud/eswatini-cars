@@ -6,17 +6,10 @@
   "build": {
     "production": {
       "android": {
-        "buildType": "apk",
-        "gradleCommand": ":app:assembleRelease"
+        "buildType": "apk"
       },
       "env": {
-        "EXPO_NO_TELEMETRY": "1",
-        "EAS_BUILD_NO_EXPO_GO_WARNING": "true"
-      }
-    },
-    "preview": {
-      "android": {
-        "buildType": "apk"
+        "EXPO_NO_TELEMETRY": "1"
       }
     }
   },

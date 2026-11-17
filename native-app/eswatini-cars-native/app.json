@@ -38,8 +38,7 @@
       }
     },
     "plugins": [
-      "expo-splash-screen",
-      "./plugins/abiFilter"
+      "expo-splash-screen"
     ]
   }
 }
