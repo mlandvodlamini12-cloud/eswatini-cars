@@ -69,9 +69,9 @@ prompt
 db/
 
 # --- Uploaded files (user-generated content at runtime) ---
-uploads/
+/uploads/
 public/uploads/
-upload/
+/upload/
 
 # --- APK binary (hosted externally on GoFile, not in git) ---
 public/Eswatini-Cars.apk
