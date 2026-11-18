@@ -5,30 +5,70 @@ import { getSessionCookie } from './auth'
 
 const API_BASE = 'https://eswatini-cars.vercel.app'
 
-// Upload a single image to Cloudinary via the /api/upload endpoint
-export async function uploadImage(uri: string): Promise<string | null> {
+// Result type so callers can tell success from failure
+export type UploadResult =
+  | { success: true; url: string }
+  | { success: false; error: string }
+
+/**
+ * Upload a single image to Cloudinary via the /api/upload endpoint.
+ *
+ * Sends the image as FormData (multipart/form-data) — this is the standard
+ * way mobile apps send binary files. The server accepts either FormData or
+ * JSON, so this works regardless.
+ *
+ * Returns:
+ *   - { success: true, url } on success
+ *   - { success: false, error } on failure — the error message can be
+ *     shown directly to the user via Alert.alert()
+ */
+export async function uploadImage(uri: string): Promise<UploadResult> {
   try {
     const cookie = await getSessionCookie()
+
     const formData = new FormData()
     formData.append('file', {
       uri,
       type: 'image/jpeg',
-      name: 'photo.jpg',
+      name: `photo-${Date.now()}.jpg`,
     } as any)
 
     const res = await fetch(`${API_BASE}/api/upload`, {
       method: 'POST',
       headers: {
+        // NOTE: do NOT set Content-Type manually — fetch auto-sets it to
+        // multipart/form-data with the correct boundary when body is FormData.
+        // Setting it manually breaks the boundary and the server can't parse.
         Cookie: cookie ? `ec_session=${cookie}` : '',
       },
       body: formData,
     })
 
-    if (!res.ok) return null
-    const data = await res.json()
-    return data.url || data.secure_url || null
-  } catch {
-    return null
+    // Try to parse JSON response regardless of status — server always returns JSON
+    const data = await res.json().catch(() => ({}))
+
+    if (!res.ok) {
+      // Server returned an error — surface it to the user
+      return {
+        success: false,
+        error: data.error || `Upload failed (HTTP ${res.status})`,
+      }
+    }
+
+    if (!data.url) {
+      return {
+        success: false,
+        error: 'Upload succeeded but no image URL was returned.',
+      }
+    }
+
+    return { success: true, url: data.url }
+  } catch (err: any) {
+    // Network error, timeout, etc.
+    return {
+      success: false,
+      error: err?.message || 'Network error during upload. Check your connection.',
+    }
   }
 }
 

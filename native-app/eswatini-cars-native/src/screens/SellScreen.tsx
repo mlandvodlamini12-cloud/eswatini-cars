@@ -91,13 +91,25 @@ export default function SellScreen({ user, onListingCreated }: { user: User | nu
     setSubmitting(true)
     setError(null)
 
-    // Upload images first
+    // Upload images first — surface any errors to the user
     let imageUrls: string[] = []
     if (images.length > 0) {
       setUploading(true)
       for (const uri of images) {
-        const url = await uploadImage(uri)
-        if (url) imageUrls.push(url)
+        const result = await uploadImage(uri)
+        if (result.success) {
+          imageUrls.push(result.url)
+        } else {
+          // Show the actual error message from the server — no more silent failures
+          setUploading(false)
+          setSubmitting(false)
+          Alert.alert(
+            'Photo upload failed',
+            result.error + '\n\nYour listing was not posted. Please try again or remove the photo.',
+            [{ text: 'OK' }]
+          )
+          return
+        }
       }
       setUploading(false)
     }
