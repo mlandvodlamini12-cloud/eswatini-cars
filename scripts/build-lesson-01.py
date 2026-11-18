@@ -116,6 +116,23 @@ style_bullet = ParagraphStyle(
     fontSize=11, leading=15, alignment=TA_LEFT,
     leftIndent=18, bulletIndent=4, spaceAfter=4,
 )
+# Table cell styles — these wrap properly inside cells
+style_cell = ParagraphStyle(
+    'Cell', parent=style_body,
+    fontSize=9, leading=12, alignment=TA_LEFT, spaceAfter=0, spaceBefore=0,
+)
+style_cell_bold = ParagraphStyle(
+    'CellBold', parent=style_cell, fontName='Helvetica-Bold',
+)
+style_cell_header = ParagraphStyle(
+    'CellHeader', parent=style_cell,
+    fontName='Helvetica-Bold', fontSize=9.5, leading=12,
+    textColor=colors.white, alignment=TA_LEFT,
+)
+style_cell_code = ParagraphStyle(
+    'CellCode', parent=style_cell,
+    fontName='Courier', fontSize=8.5, leading=11, textColor=COVER_NAVY,
+)
 style_cover_eyebrow = ParagraphStyle(
     'CoverEyebrow', parent=style_body,
     fontName='Helvetica-Bold', fontSize=11, leading=14,
@@ -194,6 +211,67 @@ def numbered_list(items, style=None):
 def hr():
     return HRFlowable(width="100%", thickness=0.6, color=BORDER,
                       spaceBefore=10, spaceAfter=10)
+
+# ────────────────────────────────────────────────────────────────────────────
+# TABLE HELPERS — wraps all cell content in Paragraph() so text wraps properly
+# ────────────────────────────────────────────────────────────────────────────
+def make_table(header_row, data_rows, col_widths_mm, code_cols=None):
+    """
+    Build a table where every cell uses Paragraph() so long text wraps.
+    - header_row: list of strings (column titles)
+    - data_rows: list of lists of strings (cell content)
+    - col_widths_mm: list of column widths in mm (must sum to <= ~160mm to leave room for padding)
+    - code_cols: optional list of column indexes that should use monospace font
+    Returns a styled Table flowable.
+    """
+    code_cols = code_cols or []
+    available_total = PAGE_W - MARGIN_L - MARGIN_R  # 166mm
+    col_widths = [w * mm for w in col_widths_mm]
+    # Safety: if total exceeds available, scale down proportionally
+    total = sum(col_widths)
+    if total > available_total - 2*mm:
+        scale = (available_total - 2*mm) / total
+        col_widths = [w * scale for w in col_widths]
+
+    # Build header row — all cells as Paragraphs
+    header_cells = [Paragraph(str(text), style_cell_header) for text in header_row]
+    rows = [header_cells]
+
+    # Build data rows — each cell wrapped in Paragraph
+    for row in data_rows:
+        row_cells = []
+        for i, cell in enumerate(row):
+            cell_text = str(cell)
+            if i in code_cols:
+                row_cells.append(Paragraph(cell_text, style_cell_code))
+            else:
+                # First column gets bold styling for readability
+                if i == 0:
+                    row_cells.append(Paragraph(cell_text, style_cell_bold))
+                else:
+                    row_cells.append(Paragraph(cell_text, style_cell))
+        rows.append(row_cells)
+
+    t = Table(rows, colWidths=col_widths, repeatRows=1)
+    t.setStyle(TableStyle([
+        # Header row
+        ('BACKGROUND', (0, 0), (-1, 0), HEADER_FILL),
+        ('TOPPADDING', (0, 0), (-1, 0), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+        # Body cells
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('TOPPADDING', (0, 1), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        # Alternating row backgrounds
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, TABLE_STRIPE]),
+        # Borders
+        ('GRID', (0, 0), (-1, -1), 0.5, BORDER),
+        # Header row text color (already in style, but enforce)
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+    ]))
+    return KeepTogether([t, Spacer(1, 10)])
 
 # ────────────────────────────────────────────────────────────────────────────
 # PAGE TEMPLATE — header + footer
@@ -406,8 +484,8 @@ def build_body():
         style_body
     ))
 
-    layer_data = [
-        ["Layer", "What it is", "Lives where", "Example from your projects"],
+    layer_header = ["Layer", "What it is", "Lives where", "Example from your projects"]
+    layer_rows = [
         ["Frontend",
          "Everything the user sees and clicks. HTML, CSS, JavaScript that runs in the browser.",
          "Served from hosting, runs in user's browser",
@@ -415,30 +493,13 @@ def build_body():
         ["Backend",
          "Code that runs on a server, handles logic the user doesn't see: processing form submissions, checking auth, talking to the database.",
          "Runs on the hosting server (or serverless functions)",
-         "Eswatini Cars' /api/listings, /api/auth/login routes. NR Solar has NO backend — it's static."],
+         "Eswatini Cars' /api/listings, /api/auth/login routes. NR Solar has NO backend."],
         ["Database",
          "Where data is stored long-term. User accounts, product listings, orders, messages.",
          "Usually a separate service (Turso, Postgres, MySQL, MongoDB)",
          "Eswatini Cars uses Turso (libSQL). NR Solar has NO database."],
     ]
-    layer_table = Table(layer_data, colWidths=[24*mm, 50*mm, 38*mm, 54*mm])
-    layer_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), HEADER_FILL),
-        ('TEXTCOLOR',  (0, 0), (-1, 0), colors.white),
-        ('FONTNAME',   (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE',   (0, 0), (-1, 0), 10),
-        ('FONTSIZE',   (0, 1), (-1, -1), 9),
-        ('FONTNAME',   (0, 1), (0, -1), 'Helvetica-Bold'),
-        ('VALIGN',     (0, 0), (-1, -1), 'TOP'),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('LEFTPADDING', (0, 0), (-1, -1), 8),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, TABLE_STRIPE]),
-        ('GRID', (0, 0), (-1, -1), 0.5, BORDER),
-    ]))
-    s.append(layer_table)
-    s.append(Spacer(1, 8))
+    s.append(make_table(layer_header, layer_rows, [22, 50, 38, 54]))
 
     s.append(Paragraph(
         "Here's the insight that matters: <b>not every website has all three layers</b>. "
@@ -488,8 +549,8 @@ def build_body():
         style_body
     ))
 
-    hosting_data = [
-        ["Type", "What it is", "Cost", "Best for", "Example"],
+    hosting_header = ["Type", "What it is", "Cost", "Best for", "Example"]
+    hosting_rows = [
         ["Static hosting",
          "Serves only static files (HTML/CSS/JS/images). No server-side code.",
          "Free usually",
@@ -502,7 +563,7 @@ def build_body():
          "Eswatini Cars on Vercel"],
         ["VPS (Virtual Private Server)",
          "A whole virtual computer you fully control. You install whatever you want.",
-         "E100–E500/month",
+         "E100-E500/month",
          "Apps with custom backends, constant traffic, special requirements",
          "A Render or Railway instance"],
         ["Dedicated server",
@@ -511,24 +572,7 @@ def build_body():
          "Huge traffic, special compliance, gaming servers",
          "Not relevant for you yet"],
     ]
-    hosting_table = Table(hosting_data, colWidths=[30*mm, 45*mm, 22*mm, 38*mm, 31*mm])
-    hosting_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), HEADER_FILL),
-        ('TEXTCOLOR',  (0, 0), (-1, 0), colors.white),
-        ('FONTNAME',   (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE',   (0, 0), (-1, 0), 9),
-        ('FONTSIZE',   (0, 1), (-1, -1), 8),
-        ('FONTNAME',   (0, 1), (0, -1), 'Helvetica-Bold'),
-        ('VALIGN',     (0, 0), (-1, -1), 'TOP'),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('LEFTPADDING', (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, TABLE_STRIPE]),
-        ('GRID', (0, 0), (-1, -1), 0.5, BORDER),
-    ]))
-    s.append(hosting_table)
-    s.append(Spacer(1, 8))
+    s.append(make_table(hosting_header, hosting_rows, [28, 44, 22, 38, 32]))
 
     s.append(Paragraph(
         "The important takeaway: <b>hosting is not one thing</b>. It's a category. Picking "
@@ -567,8 +611,8 @@ def build_body():
         style_body
     ))
 
-    dns_data = [
-        ["Record", "What it does", "Example"],
+    dns_header = ["Record", "What it does", "Example"]
+    dns_rows = [
         ["A",
          "Points the domain (or subdomain) to an IPv4 address. Used to point your domain at a hosting server.",
          "@ → 76.76.21.21"],
@@ -576,31 +620,13 @@ def build_body():
          "Points one domain at another domain. Used when your host gives you a hostname instead of an IP.",
          "www → nrsolar.netlify.app"],
         ["MX",
-         "Mail Exchange — tells the internet which server handles email for this domain. Without MX records, email to info@yourdomain.com goes nowhere.",
+         "Mail Exchange - tells the internet which server handles email for this domain. Without MX records, email to info@yourdomain.com goes nowhere.",
          "@ → aspmx.l.google.com"],
         ["TXT",
          "Arbitrary text records. Used for verification (proving you own the domain), SPF (which servers can send email as you), DKIM (email signing).",
          "@ → v=spf1 include:_spf.google.com ~all"],
     ]
-    dns_table = Table(dns_data, colWidths=[20*mm, 80*mm, 66*mm])
-    dns_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), HEADER_FILL),
-        ('TEXTCOLOR',  (0, 0), (-1, 0), colors.white),
-        ('FONTNAME',   (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE',   (0, 0), (-1, 0), 10),
-        ('FONTSIZE',   (0, 1), (-1, -1), 9),
-        ('FONTNAME',   (0, 1), (0, -1), 'Helvetica-Bold'),
-        ('FONTNAME',   (2, 1), (2, -1), 'Courier'),
-        ('VALIGN',     (0, 0), (-1, -1), 'TOP'),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('LEFTPADDING', (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, TABLE_STRIPE]),
-        ('GRID', (0, 0), (-1, -1), 0.5, BORDER),
-    ]))
-    s.append(dns_table)
-    s.append(Spacer(1, 8))
+    s.append(make_table(dns_header, dns_rows, [18, 90, 56], code_cols=[2]))
 
     s.append(Paragraph(
         "When you set up Google Workspace for the NR Solar client, you'll add 5 MX records "
@@ -638,32 +664,16 @@ def build_body():
         style_body
     ))
 
-    db_q_data = [
-        ["Does the site need to remember anything between visits?", "Need a database?"],
-        ["No — it's a brochure / marketing site, content updates are rare, no logins, no forms that store data",
+    db_q_header = ["Does the site need to remember anything between visits?", "Need a database?"]
+    db_q_rows = [
+        ["No - it's a brochure / marketing site, content updates are rare, no logins, no forms that store data",
          "NO database needed. Static hosting only. (e.g., NR Solar)"],
-        ["Yes — but only contact form submissions",
-         "Often NO database needed. Use Formspree / Getform — they store submissions for you."],
-        ["Yes — users log in, or you store listings/orders/messages",
-         "YES — you need a database."],
+        ["Yes - but only contact form submissions",
+         "Often NO database needed. Use Formspree / Getform - they store submissions for you."],
+        ["Yes - users log in, or you store listings/orders/messages",
+         "YES - you need a database."],
     ]
-    db_q_table = Table(db_q_data, colWidths=[100*mm, 66*mm])
-    db_q_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), HEADER_FILL),
-        ('TEXTCOLOR',  (0, 0), (-1, 0), colors.white),
-        ('FONTNAME',   (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE',   (0, 0), (-1, 0), 10),
-        ('FONTSIZE',   (0, 1), (-1, -1), 9),
-        ('VALIGN',     (0, 0), (-1, -1), 'TOP'),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('LEFTPADDING', (0, 0), (-1, -1), 8),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, TABLE_STRIPE]),
-        ('GRID', (0, 0), (-1, -1), 0.5, BORDER),
-    ]))
-    s.append(db_q_table)
-    s.append(Spacer(1, 12))
+    s.append(make_table(db_q_header, db_q_rows, [98, 66]))
 
     s.append(Paragraph("The main types of database", style_h2))
     s.append(Paragraph(
