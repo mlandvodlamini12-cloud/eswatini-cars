@@ -2,6 +2,7 @@
 // Calls the SAME endpoints as the web app
 
 import { getSessionCookie } from './auth'
+import { compressImageForUpload } from './compressImage'
 
 const API_BASE = 'https://eswatini-cars.vercel.app'
 
@@ -11,24 +12,38 @@ export type UploadResult =
   | { success: false; error: string }
 
 /**
- * Upload a single image to Cloudinary via the /api/upload endpoint.
+ * Compress + upload a single image to Cloudinary via the /api/upload endpoint.
+ *
+ * COMPRESSION IS MANDATORY — Vercel's serverless functions have a 4.5MB body
+ * size limit on the free tier. Phone photos are typically 3-8MB. Without
+ * compression, uploads silently fail with HTTP 413 FUNCTION_PAYLOAD_TOO_LARGE.
+ *
+ * After compression: ~200-400KB. Well within the limit.
  *
  * Sends the image as FormData (multipart/form-data) — this is the standard
  * way mobile apps send binary files. The server accepts either FormData or
  * JSON, so this works regardless.
- *
- * Returns:
- *   - { success: true, url } on success
- *   - { success: false, error } on failure — the error message can be
- *     shown directly to the user via Alert.alert()
  */
 export async function uploadImage(uri: string): Promise<UploadResult> {
   try {
+    // STEP 1: Compress the image locally before uploading
+    let compressedUri = uri
+    try {
+      const compressed = await compressImageForUpload(uri)
+      compressedUri = compressed.uri
+    } catch (compressErr: any) {
+      // If compression fails (e.g., corrupt image), fall back to original
+      // — the server will likely reject it for being too large, but at
+      // least we surface that error rather than failing silently here.
+      console.warn('[upload] compression failed, trying original:', compressErr?.message)
+    }
+
+    // STEP 2: Upload the compressed image
     const cookie = await getSessionCookie()
 
     const formData = new FormData()
     formData.append('file', {
-      uri,
+      uri: compressedUri,
       type: 'image/jpeg',
       name: `photo-${Date.now()}.jpg`,
     } as any)
@@ -38,7 +53,6 @@ export async function uploadImage(uri: string): Promise<UploadResult> {
       headers: {
         // NOTE: do NOT set Content-Type manually — fetch auto-sets it to
         // multipart/form-data with the correct boundary when body is FormData.
-        // Setting it manually breaks the boundary and the server can't parse.
         Cookie: cookie ? `ec_session=${cookie}` : '',
       },
       body: formData,
@@ -48,7 +62,7 @@ export async function uploadImage(uri: string): Promise<UploadResult> {
     const data = await res.json().catch(() => ({}))
 
     if (!res.ok) {
-      // Server returned an error — surface it to the user
+      // Surface the real error from the server
       return {
         success: false,
         error: data.error || `Upload failed (HTTP ${res.status})`,
@@ -64,7 +78,6 @@ export async function uploadImage(uri: string): Promise<UploadResult> {
 
     return { success: true, url: data.url }
   } catch (err: any) {
-    // Network error, timeout, etc.
     return {
       success: false,
       error: err?.message || 'Network error during upload. Check your connection.',
