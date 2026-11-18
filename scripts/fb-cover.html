@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Eswatini Cars Facebook Cover</title>
+<style>
+  @page { size: 1640px 624px; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1640px; height: 624px; background: #0a1a2f; }
+  .cover {
+    width: 1640px;
+    height: 624px;
+    background: linear-gradient(135deg, #0a1a2f 0%, #14386b 50%, #0a1a2f 100%);
+    position: relative;
+    overflow: hidden;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: white;
+  }
+  /* Decorative diagonal accent */
+  .cover::before {
+    content: "";
+    position: absolute;
+    top: -100px; right: -100px;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(0, 192, 254, 0.35) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .cover::after {
+    content: "";
+    position: absolute;
+    bottom: -150px; left: -150px;
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, rgba(0, 131, 254, 0.3) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .logo {
+    position: absolute;
+    top: 50%; left: 80px;
+    transform: translateY(-50%);
+    width: 320px;
+    height: 320px;
+    border-radius: 24px;
+    background: white;
+    padding: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    z-index: 2;
+  }
+  .logo img { width: 100%; height: 100%; object-fit: contain; }
+  .content {
+    position: absolute;
+    top: 50%;
+    left: 480px;
+    transform: translateY(-50%);
+    z-index: 2;
+    max-width: 1050px;
+  }
+  .eyebrow {
+    font-size: 22px;
+    font-weight: 700;
+    color: #00c0fe;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .brand-name {
+    font-size: 92px;
+    font-weight: 900;
+    color: white;
+    line-height: 1.05;
+    letter-spacing: -2px;
+    margin-bottom: 20px;
+    text-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  }
+  .brand-name .accent {
+    background: linear-gradient(90deg, #00c0fe, #0083fe);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .tagline {
+    font-size: 32px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.92);
+    line-height: 1.4;
+    margin-bottom: 14px;
+  }
+  .subtitle {
+    font-size: 22px;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.7);
+  }
+  .url-badge {
+    position: absolute;
+    bottom: 32px;
+    right: 40px;
+    background: rgba(0, 192, 254, 0.15);
+    border: 1px solid rgba(0, 192, 254, 0.4);
+    border-radius: 100px;
+    padding: 10px 24px;
+    font-size: 18px;
+    font-weight: 600;
+    color: #00c0fe;
+    z-index: 2;
+  }
+  /* Decorative car emoji cluster (right side) */
+  .deco-cars {
+    position: absolute;
+    right: 80px;
+    top: 60px;
+    font-size: 60px;
+    opacity: 0.08;
+    z-index: 1;
+    letter-spacing: 20px;
+  }
+</style>
+</head>
+<body>
+<div class="cover">
+  <div class="logo">
+    <img src="logo.png" alt="Eswatini Cars logo">
+  </div>
+  <div class="content">
+    <div class="eyebrow">Eswatini's Car Marketplace</div>
+    <h1 class="brand-name">Eswatini <span class="accent">Cars</span></h1>
+    <p class="tagline">Buy, sell, and browse cars, bakkies, vans &amp; parts.</p>
+    <p class="subtitle">Listed across all of Eswatini · Hhohho · Manzini · Shiselweni · Lubombo</p>
+  </div>
+  <div class="deco-cars">🚗 🚙 🏍️ 🛻</div>
+  <div class="url-badge">eswatini-cars.vercel.app</div>
+</div>
+</body>
+</html>
