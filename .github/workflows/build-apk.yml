@@ -44,16 +44,43 @@ jobs:
         with:
           packages: 'platforms;android-34 build-tools;34.0.0'
 
+      - name: Decode keystore from GitHub Secret
+        working-directory: android-apk
+        env:
+          EC_KEYSTORE_BASE64: ${{ secrets.EC_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$EC_KEYSTORE_BASE64" ]; then
+            echo "ERROR: EC_KEYSTORE_BASE64 secret is not set in GitHub"
+            echo "Go to: Settings → Secrets and variables → Actions → New repository secret"
+            echo "Add: EC_KEYSTORE_BASE64 = <base64-encoded keystore>"
+            echo "Without this, the APK will be unsigned and Android won't install it."
+            exit 1
+          fi
+          echo "$EC_KEYSTORE_BASE64" | base64 -d > app/release.keystore
+          echo "Keystore decoded:"
+          ls -lh app/release.keystore
+          keytool -list -keystore app/release.keystore -storepass "${{ secrets.EC_KEYSTORE_PASSWORD }}" 2>&1 | tail -3
+
       - name: Grant execute permission for gradlew
         working-directory: android-apk
         run: chmod +x ./gradlew
 
-      - name: Build production APK (release)
+      - name: Build production APK (signed release)
         working-directory: android-apk
+        env:
+          EC_KEYSTORE_PATH: app/release.keystore
+          EC_KEYSTORE_PASSWORD: ${{ secrets.EC_KEYSTORE_PASSWORD }}
+          EC_KEY_ALIAS: ${{ secrets.EC_KEY_ALIAS }}
+          EC_KEY_PASSWORD: ${{ secrets.EC_KEY_PASSWORD }}
         run: ./gradlew assembleProductionRelease --no-daemon -Pandroid.suppressUnsupportedCompileSdk=34
 
-      - name: Build staging APK (release)
+      - name: Build staging APK (signed release)
         working-directory: android-apk
+        env:
+          EC_KEYSTORE_PATH: app/release.keystore
+          EC_KEYSTORE_PASSWORD: ${{ secrets.EC_KEYSTORE_PASSWORD }}
+          EC_KEY_ALIAS: ${{ secrets.EC_KEY_ALIAS }}
+          EC_KEY_PASSWORD: ${{ secrets.EC_KEY_PASSWORD }}
         run: ./gradlew assembleStagingRelease --no-daemon -Pandroid.suppressUnsupportedCompileSdk=34
 
       - name: List built APKs (debug — show actual paths)

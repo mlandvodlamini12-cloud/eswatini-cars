@@ -20,6 +20,32 @@ android {
         versionName "1.2.0"
     }
 
+    // === Signing config ===
+    // Reads keystore path + passwords from environment variables.
+    // - Locally: set ORG_GRADLE_PROJECT_* env vars before running ./gradlew
+    // - In GitHub Actions: workflow decodes the keystore from a GitHub Secret
+    //   and sets the env vars before building.
+    //
+    // If env vars are NOT set (e.g., local dev without signing), the release
+    // build will produce an unsigned APK — same as before this change.
+    signingConfigs {
+        release {
+            def keystorePath = System.getenv('EC_KEYSTORE_PATH') ?: ''
+            def keystorePass = System.getenv('EC_KEYSTORE_PASSWORD') ?: ''
+            def keyAlias = System.getenv('EC_KEY_ALIAS') ?: ''
+            def keyPass = System.getenv('EC_KEY_PASSWORD') ?: ''
+            if (keystorePath && new File(keystorePath).exists()) {
+                storeFile file(keystorePath)
+                storePassword keystorePass
+                keyAlias keyAlias
+                keyPassword keyPass
+                println "[signing] Using keystore: $keystorePath (alias: $keyAlias)"
+            } else {
+                println "[signing] No keystore configured — release APK will be UNSIGNED"
+            }
+        }
+    }
+
     // === Product flavors — lets us build TWO APKs from the same source ===
     // production: the real app users install (sz.co.eswatinicars.app)
     // staging:    a separate test app (sz.co.eswatinicars.app.staging) that
@@ -50,6 +76,10 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
                     'proguard-rules.pro'
+            // Sign release APK with the release signing config (configured above
+            // via env vars). Without this, the APK is unsigned and Android
+            // refuses to install it.
+            signingConfig signingConfigs.release
         }
     }
 
