@@ -56,10 +56,26 @@ jobs:
             echo "Without this, the APK will be unsigned and Android won't install it."
             exit 1
           fi
-          echo "$EC_KEYSTORE_BASE64" | base64 -d > app/release.keystore
-          echo "Keystore decoded:"
+          # Strip ALL whitespace/newlines (GitHub UI may introduce them on paste)
+          # then decode with -i (ignore any remaining garbage chars)
+          CLEAN_B64=$(echo "$EC_KEYSTORE_BASE64" | tr -d ' \n\r\t' | base64 -di 2>/dev/null | base64 -w 0)
+          echo "$CLEAN_B64" | base64 -d > app/release.keystore
+          # Verify the keystore is valid
+          if [ ! -s app/release.keystore ]; then
+            echo "ERROR: Keystore file is empty after decode — secret value is invalid"
+            exit 1
+          fi
+          echo "Keystore decoded successfully:"
           ls -lh app/release.keystore
-          keytool -list -keystore app/release.keystore -storepass "${{ secrets.EC_KEYSTORE_PASSWORD }}" 2>&1 | tail -3
+          # Test that the password works (validates both keystore + password)
+          if keytool -list -keystore app/release.keystore -storepass "${{ secrets.EC_KEYSTORE_PASSWORD }}" >/dev/null 2>&1; then
+            echo "✓ Keystore password is valid"
+            keytool -list -keystore app/release.keystore -storepass "${{ secrets.EC_KEYSTORE_PASSWORD }}" 2>&1 | grep -E "Alias|fingerprint" | head -3
+          else
+            echo "ERROR: Keystore decoded but password is invalid"
+            echo "Check that EC_KEYSTORE_PASSWORD secret = eswatini123"
+            exit 1
+          fi
 
       - name: Grant execute permission for gradlew
         working-directory: android-apk
