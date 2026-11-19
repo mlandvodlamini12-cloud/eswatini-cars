@@ -28,6 +28,12 @@ jobs:
     name: Build APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Required for the softprops/action-gh-release step to create a release.
+    # The default GITHUB_TOKEN has read-only permissions; this grants write
+    # access to contents (so we can create tags + releases) and packages.
+    permissions:
+      contents: write
+      packages: write
 
     steps:
       - name: Checkout code
