@@ -21,28 +21,17 @@ android {
     }
 
     // === Signing config ===
-    // Reads keystore path + passwords from environment variables.
-    // - Locally: set ORG_GRADLE_PROJECT_* env vars before running ./gradlew
-    // - In GitHub Actions: workflow decodes the keystore from a GitHub Secret
-    //   and sets the env vars before building.
-    //
-    // If env vars are NOT set (e.g., local dev without signing), the release
-    // build will produce an unsigned APK — same as before this change.
+    // Uses a keystore file committed directly to the repo (app/release.keystore).
+    // This is acceptable for a private repo where the keystore is password-protected.
+    // When you're ready to publish to Google Play, migrate to GitHub Secrets
+    // and rotate the keystore (see /home/z/my-project/download/github-secrets-setup/
+    // for the previous secret-based setup instructions).
     signingConfigs {
         release {
-            def keystorePath = System.getenv('EC_KEYSTORE_PATH') ?: ''
-            def keystorePass = System.getenv('EC_KEYSTORE_PASSWORD') ?: ''
-            def keyAlias = System.getenv('EC_KEY_ALIAS') ?: ''
-            def keyPass = System.getenv('EC_KEY_PASSWORD') ?: ''
-            if (keystorePath && new File(keystorePath).exists()) {
-                storeFile file(keystorePath)
-                storePassword keystorePass
-                keyAlias keyAlias
-                keyPassword keyPass
-                println "[signing] Using keystore: $keystorePath (alias: $keyAlias)"
-            } else {
-                println "[signing] No keystore configured — release APK will be UNSIGNED"
-            }
+            storeFile file('release.keystore')
+            storePassword 'eswatini123'
+            keyAlias 'ec-release'
+            keyPassword 'eswatini123'
         }
     }
 
