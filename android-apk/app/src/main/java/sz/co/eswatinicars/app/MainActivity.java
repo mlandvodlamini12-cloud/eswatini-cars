@@ -9,6 +9,7 @@ import android.os.Bundle;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
+import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -66,6 +67,38 @@ public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
     private GoogleSignInClient mGoogleSignInClient;
+
+    // File upload support — handles <input type="file"> from the WebView.
+    // Without this override, tapping a file input in the WebView silently does
+    // nothing (the default onShowFileChooser returns false). This is THE fix
+    // for "upload button doesn't work in the APK".
+    private ValueCallback<Uri[]> fileUploadCallback;
+    private final ActivityResultLauncher<Intent> fileUploadLauncher =
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
+                    new ActivityResultCallback<ActivityResult>() {
+                        @Override
+                        public void onActivityResult(ActivityResult result) {
+                            Uri[] results = null;
+                            if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                                Intent data = result.getData();
+                                if (data.getDataString() != null) {
+                                    // Single file selected
+                                    results = new Uri[]{Uri.parse(data.getDataString())};
+                                } else if (data.getClipData() != null) {
+                                    // Multiple files selected (we allow multiple in the file input)
+                                    int count = data.getClipData().getItemCount();
+                                    results = new Uri[count];
+                                    for (int i = 0; i < count; i++) {
+                                        results[i] = data.getClipData().getItemAt(i).getUri();
+                                    }
+                                }
+                            }
+                            if (fileUploadCallback != null) {
+                                fileUploadCallback.onReceiveValue(results);
+                                fileUploadCallback = null;
+                            }
+                        }
+                    });
 
     // Activity result launcher for Google Sign-In intent (replaces deprecated
     // startActivityForResult + onActivityResult — required for AndroidX Activity 1.2+).
@@ -215,6 +248,34 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onPermissionRequest(final PermissionRequest request) {
                 runOnUiThread(() -> request.grant(request.getResources()));
+            }
+
+            // CRITICAL: Handle <input type="file"> from the WebView.
+            // Without this override, file inputs silently fail — the user taps
+            // "Click to upload" and nothing happens. This is the #1 cause of
+            // "upload button doesn't work in WebView APK" complaints.
+            @Override
+            public boolean onShowFileChooser(WebView webView,
+                                              ValueCallback<Uri[]> callback,
+                                              FileChooserParams params) {
+                // If a previous callback exists (user tapped upload twice), cancel it
+                if (fileUploadCallback != null) {
+                    fileUploadCallback.onReceiveValue(null);
+                }
+                fileUploadCallback = callback;
+
+                // Build the file picker intent using the params from the <input>
+                // (accept attribute, multiple attribute, etc.)
+                Intent intent = params.createIntent();
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+
+                try {
+                    fileUploadLauncher.launch(intent);
+                    return true;  // we're handling it — WebView waits for the callback
+                } catch (Exception e) {
+                    fileUploadCallback = null;
+                    return false;  // no app to handle the intent — tell WebView we failed
+                }
             }
         });
     }

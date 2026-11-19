@@ -1,0 +1,77 @@
+name: Build Android APK
+
+# This workflow builds the Eswatini Cars WebView APK in the cloud.
+# It can be triggered:
+#   1. Manually from GitHub (Actions tab → "Build Android APK" → Run workflow)
+#   2. Automatically when the Java code in android-apk/ changes
+#
+# The resulting APK is uploaded as a downloadable artifact. After the build
+# completes (about 15-20 minutes), you can:
+#   1. Go to the Actions tab on GitHub
+#   2. Click the latest "Build Android APK" run
+#   3. Scroll down to "Artifacts"
+#   4. Download the APK to your phone
+#   5. Install it (you may need to allow installs from unknown sources)
+#
+# No computer required — you can do this entirely from a phone browser.
+
+on:
+  workflow_dispatch:  # manual trigger from the Actions tab
+  push:
+    paths:
+      - 'android-apk/**'  # auto-build when the APK code changes
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-34 build-tools;34.0.0'
+
+      - name: Grant execute permission for gradlew
+        working-directory: android-apk
+        run: chmod +x ./gradlew
+
+      - name: Build production APK
+        working-directory: android-apk
+        run: ./gradlew assembleProduction --no-daemon -Pandroid.suppressUnsupportedCompileSdk=34
+
+      - name: Build staging APK
+        working-directory: android-apk
+        run: ./gradlew assembleStaging --no-daemon -Pandroid.suppressUnsupportedCompileSdk=34
+
+      - name: List built APKs
+        working-directory: android-apk
+        run: |
+          echo "Built APKs:"
+          find . -name "*.apk" -exec ls -lh {} \;
+
+      - name: Upload production APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Eswatini-Cars-Production-APK
+          path: android-apk/app/build/outputs/apk/production/*.apk
+          retention-days: 30
+
+      - name: Upload staging APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Eswatini-Cars-Staging-APK
+          path: android-apk/app/build/outputs/apk/staging/*.apk
+          retention-days: 30
