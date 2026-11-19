@@ -1384,29 +1384,39 @@ export default function Home() {
       // If so, use the native Google Sign-In (shows device account picker)
       if (typeof window !== 'undefined' && (window as any).Android && (window as any).Android.googleSignIn) {
         console.log('[google-signin] Using native Android Google Sign-In (account picker)')
+        alert('DEBUG STEP 1: Native bridge detected. Launching account picker...')
         // Listen for the result event from native code
         const handler = (event: any) => {
           window.removeEventListener('native-google-signin', handler)
           window.removeEventListener('native-google-signin-error', errorHandler)
           const detail = event.detail
+          alert('DEBUG STEP 2: Native result received.\nidToken: ' + detail.idToken + '\nemail: ' + detail.email + '\nname: ' + detail.name)
           if (detail.idToken) {
+            alert('DEBUG STEP 3a: Calling completeGoogleSignIn with idToken')
             // We have an ID token — use the same server-side verification flow
-            completeGoogleSignIn(detail.idToken).catch(err => {
+            completeGoogleSignIn(detail.idToken).then(() => {
+              alert('DEBUG STEP 4a: completeGoogleSignIn succeeded — you should be logged in now')
+            }).catch(err => {
               alert(`Google Sign-In failed: ${err?.message || err}`)
             })
           } else if (detail.email) {
+            alert('DEBUG STEP 3b: Calling completeNativeGoogleSignIn with email=' + detail.email)
             // No ID token (DEFAULT_SIGN_IN) — use email-based sign-in
             // This creates a session based on the email from the native account picker
-            completeNativeGoogleSignIn(detail.email, detail.name || detail.email.split('@')[0]).catch(err => {
-              alert(`Google Sign-In failed: ${err?.message || err}`)
+            completeNativeGoogleSignIn(detail.email, detail.name || detail.email.split('@')[0]).then(() => {
+              alert('DEBUG STEP 4b: completeNativeGoogleSignIn succeeded — you should be logged in now')
+            }).catch(err => {
+              alert(`Google Sign-In failed (in catch): ${err?.message || err}`)
             })
+          } else {
+            alert('DEBUG STEP 3c: Neither idToken nor email in event detail. Detail: ' + JSON.stringify(detail))
           }
         }
         const errorHandler = (event: any) => {
           window.removeEventListener('native-google-signin', handler)
           window.removeEventListener('native-google-signin-error', errorHandler)
           const detail = event.detail
-          alert(`Google Sign-In failed: ${detail.message || 'Unknown error'}`)
+          alert(`DEBUG STEP ERROR: Native sign-in error: ${detail.message || 'Unknown error'}`)
           setGoogleSignInBusy(false)
         }
         window.addEventListener('native-google-signin', handler)
