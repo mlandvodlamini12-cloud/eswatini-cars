@@ -2,6 +2,13 @@
 // Provides offline caching for the app shell
 //
 // VERSION HISTORY:
+//   v21 (2026-11-18): Force cache invalidation after restoring page.tsx from
+//                      NR Solar content back to the real Eswatini Cars
+//                      marketplace. Previous deploy had been serving solar
+//                      marketing content instead of the car marketplace.
+//                      Bumping CACHE_NAME forces the SW to delete the v20
+//                      cache on activation, so all users get a fresh fetch
+//                      with the correct page + working upload button.
 //   v7 (2026-10-27 PM4): Vehicle Requests — fix persistence bug + add
 //                        edit + delete features.
 //                        - POST /api/requests now actually persists requests
@@ -51,7 +58,7 @@
 //   v2: initial SW for the Vercel-hosted app
 //   v1: legacy SW from the Netlify-hosted app
 
-const CACHE_NAME = 'eswatini-cars-v20';
+const CACHE_NAME = 'eswatini-cars-v21';
 const APP_SHELL = [
   '/',
   '/manifest.json',
