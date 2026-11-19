@@ -99,3 +99,40 @@ jobs:
           path: android-apk/app/build/outputs/apk/staging/release/*.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish production APK as GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.2.1
+          name: Eswatini Cars v1.2.1 — Mass Ready
+          body: |
+            ## Eswatini Cars v1.2.1 — Mass Ready
+
+            ### What's new in this version
+            - ✅ **Upload button now works** — WebView file chooser handler added
+              (was the #1 user complaint — picking a photo did nothing)
+            - ✅ **Signed APK** — installs cleanly on Android (no more
+              "package appears to be invalid" error)
+            - ✅ **Restored Eswatini Cars homepage** — was showing NR Solar
+              marketing content due to a file mix-up
+            - ✅ **Service worker bumped to v21** — forces cache invalidation
+              so all users get the new content immediately
+            - ✅ **Image compression before upload** — phone photos (3-8MB)
+              are compressed to ~300KB before uploading, fitting within
+              Vercel's 4.5MB serverless function limit
+            - ✅ **Duplicate listings cleaned up** — Toyota Fortuner and BMW
+              Heritage duplicates removed from production database
+
+            ### Install
+            1. Download the `Eswatini-Cars.apk` file below
+            2. Tap it in your Downloads folder
+            3. Allow installs from your browser/Files app if Android prompts
+            4. Open the app, log in, tap Sell, tap upload → photo gallery opens
+
+            ### Direct download link (shareable for marketing)
+            https://github.com/mlandvodlamini12-cloud/eswatini-cars/releases/latest/download/Eswatini-Cars.apk
+          files: |
+            android-apk/app/build/outputs/apk/production/release/app-production-release.apk
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
