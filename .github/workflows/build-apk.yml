@@ -48,30 +48,38 @@ jobs:
         working-directory: android-apk
         run: chmod +x ./gradlew
 
-      - name: Build production APK
+      - name: Build production APK (release)
         working-directory: android-apk
-        run: ./gradlew assembleProduction --no-daemon -Pandroid.suppressUnsupportedCompileSdk=34
+        run: ./gradlew assembleProductionRelease --no-daemon -Pandroid.suppressUnsupportedCompileSdk=34
 
-      - name: Build staging APK
+      - name: Build staging APK (release)
         working-directory: android-apk
-        run: ./gradlew assembleStaging --no-daemon -Pandroid.suppressUnsupportedCompileSdk=34
+        run: ./gradlew assembleStagingRelease --no-daemon -Pandroid.suppressUnsupportedCompileSdk=34
 
-      - name: List built APKs
+      - name: List built APKs (debug — show actual paths)
         working-directory: android-apk
         run: |
-          echo "Built APKs:"
+          echo "=== All APK files in build outputs ==="
           find . -name "*.apk" -exec ls -lh {} \;
+          echo ""
+          echo "=== Production release APK ==="
+          ls -lh app/build/outputs/apk/production/release/*.apk 2>&1 || echo "PRODUCTION APK NOT FOUND"
+          echo ""
+          echo "=== Staging release APK ==="
+          ls -lh app/build/outputs/apk/staging/release/*.apk 2>&1 || echo "STAGING APK NOT FOUND"
 
       - name: Upload production APK
         uses: actions/upload-artifact@v4
         with:
           name: Eswatini-Cars-Production-APK
-          path: android-apk/app/build/outputs/apk/production/*.apk
+          path: android-apk/app/build/outputs/apk/production/release/*.apk
+          if-no-files-found: error
           retention-days: 30
 
       - name: Upload staging APK
         uses: actions/upload-artifact@v4
         with:
           name: Eswatini-Cars-Staging-APK
-          path: android-apk/app/build/outputs/apk/staging/*.apk
+          path: android-apk/app/build/outputs/apk/staging/release/*.apk
+          if-no-files-found: error
           retention-days: 30
