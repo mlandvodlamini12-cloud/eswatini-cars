@@ -3012,7 +3012,6 @@ export default function Home() {
           Hidden when the drawer is open so it doesn't visually overlap and
           block the X (close) button at the top-right of the drawer panel. */}
       {!drawerOpen && (
-        <>
         <button
           onClick={() => setDrawerOpen(true)}
           className="fixed top-4 right-4 z-[60] bg-sky-500 hover:bg-sky-400 text-white rounded-full w-12 h-12 flex items-center justify-center shadow-2xl shadow-sky-500/30 transition-all hover:scale-110"
@@ -3024,24 +3023,6 @@ export default function Home() {
             <line x1="3" y1="18" x2="21" y2="18" />
           </svg>
         </button>
-        {/* REFRESH BUTTON — top-right, left of hamburger.
-            Reloads the page so users can force a fresh load when images
-            don't load or content looks stale. No need to close/reopen
-            the app — just tap this and the page reloads. */}
-        <button
-          onClick={() => window.location.reload()}
-          className="fixed top-4 right-16 z-[60] bg-white/10 hover:bg-white/20 backdrop-blur-md text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg border border-white/20 transition-all hover:scale-110"
-          aria-label="Refresh page"
-          title="Refresh"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-            <path d="M23 4v6h-6" />
-            <path d="M1 20v-6h6" />
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10" />
-            <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14" />
-          </svg>
-        </button>
-        </>
       )}
 
       {/* SIDE DRAWER — slides in from the right */}
@@ -3066,6 +3047,26 @@ export default function Home() {
 
             {/* Drawer content */}
             <div className="p-4 space-y-3">
+              {/* Refresh page — reloads the app to get fresh content.
+                  Useful when images don't load or content looks stale. */}
+              <button
+                onClick={() => { setDrawerOpen(false); window.location.reload() }}
+                className="w-full flex items-center gap-3 p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all text-left"
+              >
+                <div className="w-10 h-10 rounded-xl bg-sky-500/20 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path d="M23 4v6h-6" />
+                    <path d="M1 20v-6h6" />
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10" />
+                    <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="text-sm font-semibold text-white">Refresh</div>
+                  <div className="text-xs text-slate-400">Reload the page for fresh content</div>
+                </div>
+              </button>
+
               {/* Vehicle Requests */}
               <button
                 onClick={() => { openNewRequest(); setDrawerOpen(false) }}
@@ -4907,11 +4908,33 @@ function FadeIn({ children, className = '', delay = 0 }: { children: React.React
   )
 }
 
-// ImageWithLoader — shows a spinner while the image loads, then fades it in.
-// Eliminates the "broken icon" perception while the browser is still fetching.
+// ImageWithLoader — shows a spinner while loading, then fades in.
+// On error: auto-retries once after 2 seconds, then shows a tappable
+// "retry" overlay so the user can try again without refreshing the page.
 function ImageWithLoader({ src, alt, className = '' }: { src: string; alt: string; className?: string }) {
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
+  const [retryKey, setRetryKey] = useState(0)
+
+  // Auto-retry once after 2 seconds (handles transient network blips)
+  useEffect(() => {
+    if (error && retryCount === 0) {
+      const timer = setTimeout(() => {
+        setRetryCount(1)
+        setError(false)
+        setLoaded(false)
+        setRetryKey(k => k + 1)
+      }, 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [error, retryCount])
+
+  const handleRetry = () => {
+    setError(false)
+    setLoaded(false)
+    setRetryKey(k => k + 1)
+  }
 
   return (
     <div className={`relative w-full h-full ${className}`}>
@@ -4921,11 +4944,22 @@ function ImageWithLoader({ src, alt, className = '' }: { src: string; alt: strin
         </div>
       )}
       {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400">
-          <Car className="w-6 h-6" />
-        </div>
+        <button
+          onClick={handleRetry}
+          className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+          aria-label="Retry loading image"
+        >
+          <Car className="w-6 h-6 mb-1" />
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+            <path d="M23 4v6h-6" />
+            <path d="M1 20v-6h6" />
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10" />
+            <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14" />
+          </svg>
+        </button>
       )}
       <img
+        key={retryKey}
         src={src}
         alt={alt}
         loading="lazy"
