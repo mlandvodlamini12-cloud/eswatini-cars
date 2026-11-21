@@ -1657,6 +1657,11 @@ export default function Home() {
   // Open the request dialog in CREATE mode — clears any previous edit state
   // and pre-fills with the logged-in user's email/name if available.
   const openNewRequest = () => {
+    // Only logged-in users can make a request
+    if (!currentUser) {
+      setShowLogin(true)
+      return
+    }
     setEditingRequestId(null)
     setRequestSubmitted(false)
     setRequestForm({
@@ -2711,7 +2716,7 @@ export default function Home() {
           </section>
         )}
 
-        {view === 'admin' && <AdminDashboard vehicleRequests={vehicleRequests} adminMessages={adminMessages} adminTeam={adminTeam} respondToMessage={respondToMessage} removeAdmin={removeAdmin} setShowAddAdmin={setShowAddAdmin} />}
+        {view === 'admin' && <AdminDashboard vehicleRequests={vehicleRequests} adminMessages={adminMessages} adminTeam={adminTeam} respondToMessage={respondToMessage} removeAdmin={removeAdmin} setShowAddAdmin={setShowAddAdmin} deleteRequest={deleteRequest} openEditRequest={openEditRequest} />}
       </main>
 
       {/* LISTING DETAIL MODAL */}
@@ -4183,13 +4188,15 @@ function ListingCard({
   )
 }
 
-function AdminDashboard({ vehicleRequests, adminMessages, adminTeam, respondToMessage, removeAdmin, setShowAddAdmin }: {
+function AdminDashboard({ vehicleRequests, adminMessages, adminTeam, respondToMessage, removeAdmin, setShowAddAdmin, deleteRequest, openEditRequest }: {
   vehicleRequests: VehicleRequest[]
   adminMessages: AdminMessage[]
   adminTeam: AdminTeamMember[]
   respondToMessage: (id: string, response: string) => void
   removeAdmin: (email: string) => void
   setShowAddAdmin: (v: boolean) => void
+  deleteRequest: (id: string) => Promise<void>
+  openEditRequest: (req: VehicleRequest) => void
 }) {
   const [authed, setAuthed] = useState(false)
   const [pin, setPin] = useState('')
@@ -4242,16 +4249,18 @@ function AdminDashboard({ vehicleRequests, adminMessages, adminTeam, respondToMe
     )
   }
 
-  return <AdminPanel vehicleRequests={vehicleRequests} adminMessages={adminMessages} adminTeam={adminTeam} respondToMessage={respondToMessage} removeAdmin={removeAdmin} setShowAddAdmin={setShowAddAdmin} />
+  return <AdminPanel vehicleRequests={vehicleRequests} adminMessages={adminMessages} adminTeam={adminTeam} respondToMessage={respondToMessage} removeAdmin={removeAdmin} setShowAddAdmin={setShowAddAdmin} deleteRequest={deleteRequest} openEditRequest={openEditRequest} />
 }
 
-function AdminPanel({ vehicleRequests, adminMessages, adminTeam, respondToMessage, removeAdmin, setShowAddAdmin }: {
+function AdminPanel({ vehicleRequests, adminMessages, adminTeam, respondToMessage, removeAdmin, setShowAddAdmin, deleteRequest, openEditRequest }: {
   vehicleRequests: VehicleRequest[]
   adminMessages: AdminMessage[]
   adminTeam: AdminTeamMember[]
   respondToMessage: (id: string, response: string) => void
   removeAdmin: (email: string) => void
   setShowAddAdmin: (v: boolean) => void
+  deleteRequest: (id: string) => Promise<void>
+  openEditRequest: (req: VehicleRequest) => void
 }) {
   const [tab, setTab] = useState<'overview' | 'enquiries' | 'requests' | 'messages' | 'users' | 'team' | 'broadcasts'>('overview')
   const [responseText, setResponseText] = useState<string>('')
@@ -4356,7 +4365,30 @@ function AdminPanel({ vehicleRequests, adminMessages, adminTeam, respondToMessag
                   <b>Wants:</b> {req.vehicleType} · {req.make || 'Any make'} {req.model} · Budget: E{req.minBudget || '0'} - E{req.maxBudget || 'Any'} · {req.region}
                 </div>
                 {req.description && <p className="text-xs text-slate-500 italic">"{req.description}"</p>}
-                <div className="text-[10px] text-slate-400 mt-2">{fmtDate(req.createdAt)}</div>
+                <div className="flex items-center justify-between gap-2 mt-3">
+                  <div className="text-[10px] text-slate-400">{fmtDate(req.createdAt)}</div>
+                  {/* Admin Edit + Delete buttons — admin can edit/delete ANY request */}
+                  <div className="flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-sky-300 hover:bg-sky-500/10 hover:text-sky-200 h-7 px-2"
+                      onClick={() => openEditRequest(req)}
+                      title="Edit this request"
+                    >
+                      <Pencil className="w-3.5 h-3.5 mr-1" /> Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-red-300 hover:bg-red-500/10 hover:text-red-200 h-7 px-2"
+                      onClick={() => deleteRequest(req.id)}
+                      title="Delete this request"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
+                    </Button>
+                  </div>
+                </div>
               </CardContent></Card>
             ))
           )}
