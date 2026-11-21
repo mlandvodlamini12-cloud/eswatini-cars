@@ -2,6 +2,12 @@
 // Provides offline caching for the app shell
 //
 // VERSION HISTORY:
+//   v22 (2026-11-21): Force cache invalidation after removing Google
+//                      Sign-In debug alerts. The cleanup commit removed
+//                      the alerts from the JS bundle server-side, but
+//                      existing WebView APKs were still serving the old
+//                      JS from the v21 cache. Bumping to v22 forces a
+//                      fresh fetch on next launch.
 //   v21 (2026-11-18): Force cache invalidation after restoring page.tsx from
 //                      NR Solar content back to the real Eswatini Cars
 //                      marketplace. Previous deploy had been serving solar
@@ -58,7 +64,7 @@
 //   v2: initial SW for the Vercel-hosted app
 //   v1: legacy SW from the Netlify-hosted app
 
-const CACHE_NAME = 'eswatini-cars-v21';
+const CACHE_NAME = 'eswatini-cars-v22';
 const APP_SHELL = [
   '/',
   '/manifest.json',
