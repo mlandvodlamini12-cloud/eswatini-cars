@@ -64,7 +64,7 @@
 //   v2: initial SW for the Vercel-hosted app
 //   v1: legacy SW from the Netlify-hosted app
 
-const CACHE_NAME = 'eswatini-cars-v22';
+const CACHE_NAME = 'eswatini-cars-v23';
 const APP_SHELL = [
   '/',
   '/manifest.json',
@@ -90,6 +90,17 @@ self.addEventListener('install', (event) => {
     })
   );
   self.skipWaiting();
+});
+
+// Message handler: respond to version queries from the page.
+// The page uses this to detect when a new SW version has taken over.
+// It asks the SW "what version are you?" and compares the answer with
+// the version stored in localStorage. If they differ, the page shows
+// the "Update available — tap to refresh" banner.
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'GET_VERSION') {
+    event.ports[0].postMessage({ type: 'VERSION', version: CACHE_NAME });
+  }
 });
 
 // Activate: clean up old caches and force all open tabs to reload with fresh assets.

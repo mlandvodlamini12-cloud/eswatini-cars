@@ -21,59 +21,92 @@
 
 (function () {
   // ============================================================
-  // 1. SERVICE WORKER REGISTRATION + AUTO-UPDATE BANNER
+  // 1. SERVICE WORKER REGISTRATION + VERSION-CHECK UPDATE BANNER
   // ============================================================
+  // The banner detection uses VERSION COMPARISON, not the controllerchange
+  // event. Here's why: the SW's activate handler calls client.navigate()
+  // which reloads the page immediately. By the time the new page loads,
+  // the controllerchange event has already fired — so the banner listener
+  // (which was just loaded) misses it.
+  //
+  // Version comparison solves this:
+  // 1. On page load, ask the SW "what version are you?"
+  // 2. Compare with the version stored in localStorage
+  // 3. If they differ → a new SW just took over → show banner
+  // 4. Update localStorage with the new version
+  //
+  // On the FIRST visit (no localStorage value), don't show the banner.
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
       navigator.serviceWorker.register('/sw.js').then(function (registration) {
         console.log('PWA SW registered:', registration.scope)
 
-        // CASE A: A new SW was already waiting when the page loaded
-        // (happens when user opens the app and a new SW was downloaded
-        // in a previous visit but hasn't activated yet)
-        if (registration.waiting) {
-          showUpdateBanner()
-        }
+        // Check for updates periodically (every 60 min)
+        setInterval(function () {
+          registration.update().catch(function () {})
+        }, 60 * 60 * 1000)
 
-        // CASE B: Listen for a new SW being installed
+        // Version check: ask the SW for its version, compare with localStorage
+        checkSWVersion()
+
+        // Also listen for controllerchange (in case the SW updates while
+        // the page is open — the version check will catch it on next load,
+        // but this gives us a chance to show the banner immediately)
         registration.addEventListener('updatefound', function () {
           var installingWorker = registration.installing
           if (installingWorker) {
             installingWorker.addEventListener('statechange', function () {
               if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                // New SW is installed. Because our SW calls skipWaiting(),
-                // it will activate immediately → controllerchange will fire.
-                // Show the banner now so user knows an update is ready.
+                // New SW installed — will activate shortly (skipWaiting)
+                // The version check on next page load will show the banner
+                // But we can also show it now for immediate feedback
                 showUpdateBanner()
               }
             })
           }
         })
-
-        // Periodically check for updates (every 60 minutes)
-        // The browser only checks for SW updates on navigation, so if a
-        // user leaves the app open for hours, they won't get the update
-        // until they navigate. This interval forces a check.
-        setInterval(function () {
-          registration.update().catch(function () {})
-        }, 60 * 60 * 1000)
       }).catch(function (err) {
         console.log('PWA SW registration failed:', err)
       })
     })
+  }
 
-    // CASE C: The controller changed (new SW just took over).
-    // If this isn't the very first activation, reload the page so the
-    // user gets the new code. We use a flag to skip the first activation
-    // (which happens when the SW registers for the first time).
-    var refreshing = false
-    navigator.serviceWorker.addEventListener('controllerchange', function () {
-      if (refreshing) return
-      refreshing = true
-      // Don't auto-reload — let the user tap the banner.
-      // The banner is already shown by CASE A or CASE B above.
-      // If we reload here, we'd interrupt the user mid-action.
-    })
+  // Ask the SW for its version and compare with localStorage
+  function checkSWVersion() {
+    if (!navigator.serviceWorker.controller) {
+      // No SW controlling the page yet — first visit. Don't show banner.
+      return
+    }
+
+    var channel = new MessageChannel()
+    channel.port1.onmessage = function (event) {
+      if (event.data && event.data.type === 'VERSION') {
+        var currentVersion = event.data.version
+        var lastKnownVersion = ''
+        try {
+          lastKnownVersion = localStorage.getItem('ec_sw_version') || ''
+        } catch (e) {}
+
+        if (lastKnownVersion && lastKnownVersion !== currentVersion) {
+          // Version mismatch — a new SW just took over since last visit
+          showUpdateBanner()
+        }
+
+        // Store the current version for next time
+        try {
+          localStorage.setItem('ec_sw_version', currentVersion)
+        } catch (e) {}
+      }
+    }
+
+    try {
+      navigator.serviceWorker.controller.postMessage(
+        { type: 'GET_VERSION' },
+        [channel.port2]
+      )
+    } catch (e) {
+      console.log('[sw-version-check] failed:', e)
+    }
   }
 
   // ============================================================

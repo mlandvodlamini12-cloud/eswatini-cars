@@ -3012,6 +3012,7 @@ export default function Home() {
           Hidden when the drawer is open so it doesn't visually overlap and
           block the X (close) button at the top-right of the drawer panel. */}
       {!drawerOpen && (
+        <>
         <button
           onClick={() => setDrawerOpen(true)}
           className="fixed top-4 right-4 z-[60] bg-sky-500 hover:bg-sky-400 text-white rounded-full w-12 h-12 flex items-center justify-center shadow-2xl shadow-sky-500/30 transition-all hover:scale-110"
@@ -3023,6 +3024,24 @@ export default function Home() {
             <line x1="3" y1="18" x2="21" y2="18" />
           </svg>
         </button>
+        {/* REFRESH BUTTON — top-right, left of hamburger.
+            Reloads the page so users can force a fresh load when images
+            don't load or content looks stale. No need to close/reopen
+            the app — just tap this and the page reloads. */}
+        <button
+          onClick={() => window.location.reload()}
+          className="fixed top-4 right-16 z-[60] bg-white/10 hover:bg-white/20 backdrop-blur-md text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg border border-white/20 transition-all hover:scale-110"
+          aria-label="Refresh page"
+          title="Refresh"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+            <path d="M23 4v6h-6" />
+            <path d="M1 20v-6h6" />
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10" />
+            <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14" />
+          </svg>
+        </button>
+        </>
       )}
 
       {/* SIDE DRAWER — slides in from the right */}
