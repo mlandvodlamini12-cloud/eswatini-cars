@@ -186,14 +186,19 @@ public class MainActivity extends AppCompatActivity {
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);          // localStorage for My Posts tracking
         s.setDatabaseEnabled(true);
-        // CACHE MODE: LOAD_CACHE_ELSE_NETWORK
-        // This is the KEY speed optimization. It means:
-        // - If cached content exists → show it IMMEDIATELY, then fetch fresh content in background
-        // - If no cache (first open) → fetch from network normally
-        // Result: second+ opens show the app almost instantly (~200ms instead of ~3s)
-        // because the cached HTML/CSS/JS is already on the device.
-        // The fresh data (new listings, etc.) loads silently in the background.
-        s.setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
+        // CACHE MODE: LOAD_DEFAULT
+        // Previously LOAD_CACHE_ELSE_NETWORK which caused stale API data:
+        // the WebView cached /api/requests responses and served the old cached
+        // version on next app open, making deleted requests "come back".
+        //
+        // LOAD_DEFAULT respects HTTP cache headers:
+        // - API responses (cache-control: max-age=0, must-revalidate) → always fresh
+        // - Static assets (JS/CSS/images with long max-age) → served from cache → fast
+        // - HTML pages (cache-control: no-cache) → revalidated on each load
+        //
+        // This is slightly slower on cold starts (HTML revalidates instead of
+        // serving cache instantly) but prevents ALL stale data issues.
+        s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setAllowFileAccess(false);
         s.setAllowContentAccess(false);
         s.setMediaPlaybackRequiresUserGesture(false);
