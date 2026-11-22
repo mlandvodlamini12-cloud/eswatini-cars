@@ -22,5 +22,13 @@
              (default for dark backgrounds). Do NOT set this to true,
              true would make icons dark, which would be invisible on navy. -->
         <item name="android:windowLightStatusBar">false</item>
+
+        <!-- ANDROID 12+ SPLASH SCREEN — without these, Android 12+ shows
+             a WHITE background during the initial splash (before the
+             windowBackground takes over). Setting windowSplashScreenBackground
+             to navy ensures the ENTIRE launch sequence is navy — no white
+             flash at all. -->
+        <item name="android:windowSplashScreenBackground">@color/navy</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_logo</item>
     </style>
 </resources>
