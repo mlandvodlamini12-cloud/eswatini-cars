@@ -892,7 +892,7 @@ export default function Home() {
   // Show the most recent unread, un-dismissed one as a sticky banner.
   const fetchBroadcasts = useCallback(async () => {
     try {
-      const res = await fetch('/api/broadcasts', { credentials: 'include' })
+      const res = await fetch('/api/broadcasts', { credentials: 'include' }, cache: 'no-store')
       if (!res.ok) return
       const data = await res.json()
       setBroadcasts(data.broadcasts || [])
@@ -1050,7 +1050,7 @@ export default function Home() {
       const uploadResults = await Promise.all(
         validDataUrls.map(async (dataUrl) => {
           try {
-            const res = await fetch('/api/upload', {
+            const res = await fetch('/api/upload', { cache: 'no-store',
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ image: dataUrl }),
@@ -1198,7 +1198,7 @@ export default function Home() {
 
     showConfirm('Delete listing?', 'Are you sure you want to delete this listing? This action cannot be undone.', async () => {
       try {
-        const res = await fetch(`/api/listings/${id}`, { method: 'DELETE' })
+        const res = await fetch(`/api/listings/${id}`, { cache: 'no-store', method: 'DELETE' })
         if (!res.ok) {
           const err = await res.json().catch(() => ({}))
           throw new Error(err.error || `API returned ${res.status}`)
@@ -1277,7 +1277,7 @@ export default function Home() {
           username = (username + 'user' + Math.floor(Math.random() * 1000)).slice(0, 20)
         }
       }
-      const res = await fetch('/api/auth/register', {
+      const res = await fetch('/api/auth/register', { cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -1355,7 +1355,7 @@ export default function Home() {
       } else {
         payload.password = loginPassword
       }
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch('/api/auth/login', { cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -1389,7 +1389,7 @@ export default function Home() {
 
   const logout = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include', cache: 'no-store' })
     } catch {}
     // Clear local state
     setCurrentUser(null)
@@ -1461,7 +1461,7 @@ export default function Home() {
   // Native Google Sign-In (from APK) — email-based, no ID token
   const completeNativeGoogleSignIn = async (email: string, name: string) => {
     console.log('[native-google-signin] email:', email)
-    const res = await fetch('/api/auth/google', {
+    const res = await fetch('/api/auth/google', { cache: 'no-store',
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -1488,7 +1488,7 @@ export default function Home() {
     if (user.role === 'admin') setView('admin')
   }
   const completeGoogleSignIn = async (idToken: string) => {
-    const res = await fetch('/api/auth/google', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ idToken }) })
+    const res = await fetch('/api/auth/google', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', cache: 'no-store', body: JSON.stringify({ idToken }) })
     if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || `Google sign-in failed (${res.status})`) }
     const data = await res.json()
     const user: User = { email: data.user.email, name: data.user.name || data.user.email.split('@')[0], username: data.user.username || '', phone: data.user.phone || '', role: (data.user.role as User['role']) || 'user', createdAt: data.user.createdAt || new Date().toISOString() }
@@ -1510,7 +1510,7 @@ export default function Home() {
     if (!respondToRequestId) return
     setRespondSubmitting(true)
     try {
-      const res = await fetch('/api/request-responses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: respondToRequestId, responderName: respondForm.name, responderPhone: respondForm.phone, responderEmail: currentUser?.email || null, message: respondForm.message }) })
+      const res = await fetch('/api/request-responses', { method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: respondToRequestId, responderName: respondForm.name, responderPhone: respondForm.phone, responderEmail: currentUser?.email || null, message: respondForm.message }) })
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || `API returned ${res.status}`) }
       setRespondSubmitted(true); setRespondForm({ name: '', phone: '', message: '' })
     } catch (err: any) { toast.error(`Failed to send response: ${err?.message || err}. Please try again.`) }
@@ -1521,7 +1521,7 @@ export default function Home() {
   useEffect(() => {
     const saved = localStorage.getItem('ec_user')
     if (saved) { try { setCurrentUser(JSON.parse(saved)) } catch {} }
-    fetch('/api/auth/me', { credentials: 'include' })
+    fetch('/api/auth/me', { credentials: 'include' }, cache: 'no-store')
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.user) {
@@ -1556,7 +1556,7 @@ export default function Home() {
   // local React state, so they vanished on refresh — that was the bug).
   const fetchVehicleRequests = useCallback(async () => {
     try {
-      const res = await fetch('/api/requests', { credentials: 'include' })
+      const res = await fetch('/api/requests', { credentials: 'include' }, cache: 'no-store')
       if (!res.ok) return
       const data = await res.json()
       if (Array.isArray(data?.requests)) {
@@ -1595,7 +1595,7 @@ export default function Home() {
     try {
       // If editing an existing request, route to PATCH instead of POST.
       if (editingRequestId) {
-        const res = await fetch(`/api/requests/${editingRequestId}`, {
+        const res = await fetch(`/api/requests/${ cache: 'no-store',editingRequestId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -1621,7 +1621,7 @@ export default function Home() {
         setEditingRequestId(null)
       } else {
         // Creating a new request — POST to /api/requests.
-        const res = await fetch('/api/requests', {
+        const res = await fetch('/api/requests', { cache: 'no-store',
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -1714,7 +1714,7 @@ export default function Home() {
     showConfirm('Delete request?', 'Delete this request? This cannot be undone.', async () => {
       setDeletingRequestId(id)
       try {
-        const res = await fetch(`/api/requests/${id}`, {
+        const res = await fetch(`/api/requests/${ cache: 'no-store',id}`, {
           method: 'DELETE',
           credentials: 'include',
         })
@@ -1748,7 +1748,7 @@ export default function Home() {
   // local React state and disappear on refresh.
   const fetchMessages = useCallback(async () => {
     try {
-      const res = await fetch('/api/messages', { credentials: 'include' })
+      const res = await fetch('/api/messages', { credentials: 'include' }, cache: 'no-store')
       if (!res.ok) return
       const data = await res.json()
       if (Array.isArray(data?.messages)) {
@@ -1764,7 +1764,7 @@ export default function Home() {
   // the Messages button) because the user has now seen the admin's replies.
   const markMessagesAsRead = useCallback(async () => {
     try {
-      await fetch('/api/messages', {
+      await fetch('/api/messages', { cache: 'no-store',
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -1821,7 +1821,7 @@ export default function Home() {
       return
     }
     try {
-      const res = await fetch('/api/messages', {
+      const res = await fetch('/api/messages', { cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -1859,7 +1859,7 @@ export default function Home() {
     if (!text.trim()) return
     setSendingReply(messageId)
     try {
-      const res = await fetch('/api/messages', {
+      const res = await fetch('/api/messages', { cache: 'no-store',
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -4131,7 +4131,7 @@ export default function Home() {
                     if (!confirm('Are you absolutely sure? This will permanently delete your account, listings, and messages. This action CANNOT be undone.')) return
                     if (!confirm('Last warning: Type-confirm by clicking OK one more time to permanently delete.')) return
                     try {
-                      const res = await fetch('/api/auth/delete-account', { method: 'DELETE', credentials: 'include' })
+                      const res = await fetch('/api/auth/delete-account', { method: 'DELETE', credentials: 'include', cache: 'no-store' })
                       if (res.ok) {
                         toast.error('Account deleted. You will be logged out.')
                         setCurrentUser(null)
@@ -4276,7 +4276,7 @@ function AdminDashboard({ vehicleRequests, adminMessages, adminTeam, respondToMe
     // For now, since the user already logged in as admin (server verified
     // the PIN during login), this second gate just needs a simple check.
     // We send the PIN to /api/auth/login again to verify.
-    fetch('/api/auth/login', {
+    fetch('/api/auth/login', { cache: 'no-store',
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -4673,7 +4673,7 @@ function BroadcastsTab() {
   const fetchBroadcasts = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/broadcasts', { credentials: 'include' })
+      const res = await fetch('/api/broadcasts', { credentials: 'include' }, cache: 'no-store')
       const data = await res.json()
       setBroadcasts(data.broadcasts || [])
     } catch {}
@@ -4686,7 +4686,7 @@ function BroadcastsTab() {
     if (!form.title || !form.message) return
     setSending(true)
     try {
-      const res = await fetch('/api/broadcasts', {
+      const res = await fetch('/api/broadcasts', { cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -4722,7 +4722,7 @@ function BroadcastsTab() {
     if (!editForm.title || !editForm.message) return
     setSavingEdit(true)
     try {
-      const res = await fetch(`/api/broadcasts/${editTarget.id}`, {
+      const res = await fetch(`/api/broadcasts/${ cache: 'no-store',editTarget.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -4752,7 +4752,7 @@ function BroadcastsTab() {
         onClick: async () => {
           setDeletingId(id)
           try {
-            const res = await fetch(`/api/broadcasts/${id}`, {
+            const res = await fetch(`/api/broadcasts/${ cache: 'no-store',id}`, {
               method: 'DELETE',
               credentials: 'include',
             })
@@ -5185,7 +5185,7 @@ function UserManagementTab() {
       : `Unblock ${userName}? They can log in again.`
     if (!confirm(confirmMsg)) return
     try {
-      const res = await fetch('/api/admin/users', {
+      const res = await fetch('/api/admin/users', { cache: 'no-store',
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
