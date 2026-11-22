@@ -1,6 +1,17 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { toast } from 'sonner'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { createPortal } from 'react-dom'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -440,6 +451,29 @@ const fmtDate = (iso: string) => {
 }
 
 export default function Home() {
+  // Global confirm dialog state — replaces all window.confirm() calls
+  // with a modern styled AlertDialog that matches the app's dark theme.
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean
+    title: string
+    message: string
+    confirmLabel?: string
+    destructive?: boolean
+    onConfirm: () => void
+  }>({ open: false, title: '', message: '', onConfirm: () => {} })
+
+  // Call this instead of window.confirm()
+  const showConfirm = (title: string, message: string, onConfirm: () => void, opts?: { confirmLabel?: string; destructive?: boolean }) => {
+    setConfirmState({
+      open: true,
+      title,
+      message,
+      confirmLabel: opts?.confirmLabel || 'Confirm',
+      destructive: opts?.destructive ?? true,
+      onConfirm,
+    })
+  }
+
   const [view, setView] = useState<'browse' | 'how' | 'saved' | 'myposts' | 'myrequests' | 'admin' | 'requests' | 'messages'>('browse')
   const [listings, setListings] = useState<Listing[]>(() => {
     if (typeof window === 'undefined') return []
@@ -829,7 +863,7 @@ export default function Home() {
         console.warn('[sendOTP] Firebase error:', result.error)
         // Show the error in an alert so the user sees it (mobile-friendly).
         // The error message from firebase.ts is already user-friendly.
-        alert(`Could not send OTP: ${result.error}`)
+        toast.error(`Could not send OTP: ${result.error}`)
       } else {
         setConfirmationResult(result.confirmationResult)
         setPhoneVerifyStep('otp')
@@ -837,7 +871,7 @@ export default function Home() {
     } catch (err: any) {
       console.warn('[sendOTP] failed:', err)
       const errMsg = err?.message || 'Unknown error. Please try again.'
-      alert(`Could not send OTP: ${errMsg}`)
+      toast.error(`Could not send OTP: ${errMsg}`)
     }
   }, [])
 
@@ -978,12 +1012,12 @@ export default function Home() {
     const available = 8 - currentImages.length
 
     if (available <= 0) {
-      alert('Maximum 8 photos reached. Remove one before adding more.')
+      toast.error('Maximum 8 photos reached. Remove one before adding more.')
       return
     }
 
     if (fileArr.length > available) {
-      alert(`Only ${available} more photo(s) can be added (max 8 total). Uploading the first ${available}.`)
+      toast.error(`Only ${available} more photo(s) can be added (max 8 total). Uploading the first ${available}.`)
     }
 
     const toUpload = fileArr.slice(0, available)
@@ -1045,11 +1079,11 @@ export default function Home() {
           return { ...f, imageUrl: [...imgs, ...newUrls].join('|') }
         })
       } else {
-        alert('Upload failed. Please try again with a smaller image.')
+        toast.error('Upload failed. Please try again with a smaller image.')
       }
     } catch (err: any) {
       console.error('[handleMultiImageUpload] failed:', err)
-      alert(`Upload failed: ${err?.message || 'Unknown error'}. Please try again.`)
+      toast.error(`Upload failed: ${err?.message || 'Unknown error'}. Please try again.`)
     } finally {
       setUploading(false)
     }
@@ -1058,7 +1092,7 @@ export default function Home() {
   const submitSell = async () => {
     // Validate required fields
     if (!sellForm.sellerName || !sellForm.sellerPhone) {
-      alert('Please fill in your name and phone number so buyers can contact you.')
+      toast.error('Please fill in your name and phone number so buyers can contact you.')
       return
     }
 
@@ -1143,7 +1177,7 @@ export default function Home() {
         err?.error && typeof err.error === 'string' ? err.error :
         err?.toString && typeof err.toString === 'function' && err.toString() !== '[object Object]' ? err.toString() :
         'Unknown error'
-      alert(`Failed to post listing: ${errMsg}. Please try again.`)
+      toast.error(`Failed to post listing: ${errMsg}. Please try again.`)
     }
   }
 
@@ -1158,29 +1192,26 @@ export default function Home() {
     const isOwner = currentUser?.email && listing.sellerEmail === currentUser?.email
     // Allow delete if user is admin OR owns the listing
     if (!isAdmin && !isOwner) {
-      alert('You can only delete listings that you created. If this is your listing, log in with the same email you used when posting.')
+      toast.error('You can only delete listings that you created. If this is your listing, log in with the same email you used when posting.')
       return
     }
 
-    if (!confirm('Are you sure you want to delete this listing? This action cannot be undone.')) return
-
-    try {
-      const res = await fetch(`/api/listings/${id}`, { method: 'DELETE' })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || `API returned ${res.status}`)
+    showConfirm('Delete listing?', 'Are you sure you want to delete this listing? This action cannot be undone.', async () => {
+      try {
+        const res = await fetch(`/api/listings/${id}`, { method: 'DELETE' })
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          throw new Error(err.error || `API returned ${res.status}`)
+        }
+        setUserListings(prev => (Array.isArray(prev) ? prev : []).filter(l => l.id !== id))
+        setListings(prev => (Array.isArray(prev) ? prev : []).filter(l => l.id !== id))
+        setSavedIds(prev => (Array.isArray(prev) ? prev : []).filter(sid => sid !== id))
+        toast.success('Listing deleted.')
+      } catch (err: any) {
+        console.error('[deleteListing] failed:', err)
+        toast.error(`Failed to delete: ${err.message || err}`)
       }
-      // Remove from local state immediately for instant UI feedback.
-      // Defensive: ensure prev is always an array before calling .filter
-      // (a stale localStorage value or a stray setState from elsewhere could
-      // otherwise crash the page mid-delete with "r.filter is not a function").
-      setUserListings(prev => (Array.isArray(prev) ? prev : []).filter(l => l.id !== id))
-      setListings(prev => (Array.isArray(prev) ? prev : []).filter(l => l.id !== id))
-      setSavedIds(prev => (Array.isArray(prev) ? prev : []).filter(sid => sid !== id))
-    } catch (err: any) {
-      console.error('[deleteListing] failed:', err)
-      alert(`Failed to delete: ${err.message || err}`)
-    }
+    })
   }
 
   // Edit listing — open the sell form pre-filled with the listing's data (owner or admin only)
@@ -1188,7 +1219,7 @@ export default function Home() {
     const isAdmin = isAdminEmail(currentUser?.email)
     const isOwner = currentUser?.email && l.sellerEmail === currentUser?.email
     if (!isAdmin && !isOwner) {
-      alert('You can only edit listings that you created. Log in with the same email you used to post it.')
+      toast.error('You can only edit listings that you created. Log in with the same email you used to post it.')
       return
     }
     setEditingListing(l)
@@ -1226,7 +1257,7 @@ export default function Home() {
       try {
         await verifyOTP(otpCode)
       } catch (err: any) {
-        alert(`OTP verification failed: ${err.message || err}`)
+        toast.error(`OTP verification failed: ${err.message || err}`)
         return
       }
     }
@@ -1283,7 +1314,7 @@ export default function Home() {
       const wasAutoGenerated = !registerForm.username.trim()
       if (wasAutoGenerated) {
         setTimeout(() => {
-          alert(`✅ Account created!\n\nYour username is: @${usernameToShow}\n\nThis was auto-generated from your email. You can use it to identify yourself when messaging admin. You can also see it anytime in Profile Settings.`)
+          toast.success(`✅ Account created!\n\nYour username is: @${usernameToShow}\n\nThis was auto-generated from your email. You can use it to identify yourself when messaging admin. You can also see it anytime in Profile Settings.`)
         }, 100)
       }
       setRegisterForm({ name: '', email: '', phone: '', password: '', username: '' })
@@ -1293,7 +1324,7 @@ export default function Home() {
       setOtpCode('')
       setConfirmationResult(null)
     } catch (err: any) {
-      alert(`Registration failed: ${err.message || err}. Please try again.`)
+      toast.error(`Registration failed: ${err.message || err}. Please try again.`)
     }
   }
 
@@ -1352,7 +1383,7 @@ export default function Home() {
       // the pre-auth-migration behavior).
       if (user.role === 'admin') setView('admin')
     } catch (err: any) {
-      alert(`Login failed: ${err.message || err}. Please try again.`)
+      toast.error(`Login failed: ${err.message || err}. Please try again.`)
     }
   }
 
@@ -1392,13 +1423,13 @@ export default function Home() {
           if (detail.idToken) {
             // We have an ID token — use the same server-side verification flow
             completeGoogleSignIn(detail.idToken).catch(err => {
-              alert(`Google Sign-In failed: ${err?.message || err}`)
+              toast.error(`Google Sign-In failed: ${err?.message || err}`)
             })
           } else if (detail.email) {
             // No ID token (DEFAULT_SIGN_IN) — use email-based sign-in
             // This creates a session based on the email from the native account picker
             completeNativeGoogleSignIn(detail.email, detail.name || detail.email.split('@')[0]).catch(err => {
-              alert(`Google Sign-In failed: ${err?.message || err}`)
+              toast.error(`Google Sign-In failed: ${err?.message || err}`)
             })
           }
         }
@@ -1406,7 +1437,7 @@ export default function Home() {
           window.removeEventListener('native-google-signin', handler)
           window.removeEventListener('native-google-signin-error', errorHandler)
           const detail = event.detail
-          alert(`Google Sign-In failed: ${detail.message || 'Unknown error'}`)
+          toast.error(`Google Sign-In failed: ${detail.message || 'Unknown error'}`)
           setGoogleSignInBusy(false)
         }
         window.addEventListener('native-google-signin', handler)
@@ -1419,9 +1450,9 @@ export default function Home() {
       const { signInWithGoogle } = await import('@/lib/firebase')
       const result = await signInWithGoogle()
       if (result.idToken) await completeGoogleSignIn(result.idToken)
-      else if (result.error && result.error !== '__redirect_in_progress__') alert(`Google Sign-In failed: ${result.error}`)
+      else if (result.error && result.error !== '__redirect_in_progress__') toast.error(`Google Sign-In failed: ${result.error}`)
     } catch (err: any) {
-      alert(`Google Sign-In failed: ${err?.message || err}.`)
+      toast.error(`Google Sign-In failed: ${err?.message || err}.`)
     } finally {
       setGoogleSignInBusy(false)
     }
@@ -1482,7 +1513,7 @@ export default function Home() {
       const res = await fetch('/api/request-responses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: respondToRequestId, responderName: respondForm.name, responderPhone: respondForm.phone, responderEmail: currentUser?.email || null, message: respondForm.message }) })
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || `API returned ${res.status}`) }
       setRespondSubmitted(true); setRespondForm({ name: '', phone: '', message: '' })
-    } catch (err: any) { alert(`Failed to send response: ${err?.message || err}. Please try again.`) }
+    } catch (err: any) { toast.error(`Failed to send response: ${err?.message || err}. Please try again.`) }
     finally { setRespondSubmitting(false) }
   }
 
@@ -1500,7 +1531,7 @@ export default function Home() {
       }).catch(() => {})
     if (typeof window !== 'undefined') {
       import('@/lib/firebase').then(({ checkGoogleRedirectResult }) => checkGoogleRedirectResult())
-        .then(result => { if (result?.idToken) completeGoogleSignIn(result.idToken).catch(err => alert(`Google Sign-In could not be completed: ${err?.message || err}. Please try again.`)) })
+        .then(result => { if (result?.idToken) completeGoogleSignIn(result.idToken).catch(err => toast.error(`Google Sign-In could not be completed: ${err?.message || err}. Please try again.`)) })
         .catch(() => {})
     }
   }, [])
@@ -1625,7 +1656,7 @@ export default function Home() {
         fuelType: 'any', transmission: 'any', region: 'Manzini', description: '',
       })
     } catch (err: any) {
-      alert(`Failed to submit request: ${err.message || err}. Please try again.`)
+      toast.error(`Failed to submit request: ${err.message || err}. Please try again.`)
     } finally {
       setSubmittingRequest(false)
     }
@@ -1679,26 +1710,26 @@ export default function Home() {
   // Delete a vehicle request by id. Asks for confirmation first because this
   // is a destructive action. Calls DELETE /api/requests/[id] which enforces
   // ownership (only the original requester or an admin can delete).
-  const deleteRequest = async (id: string) => {
-    if (!window.confirm('Delete this request? This cannot be undone.')) return
-    setDeletingRequestId(id)
-    try {
-      const res = await fetch(`/api/requests/${id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || `API returned ${res.status}`)
+  const deleteRequest = (id: string) => {
+    showConfirm('Delete request?', 'Delete this request? This cannot be undone.', async () => {
+      setDeletingRequestId(id)
+      try {
+        const res = await fetch(`/api/requests/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        })
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          throw new Error(err.error || `API returned ${res.status}`)
+        }
+        setVehicleRequests(prev => (Array.isArray(prev) ? prev : []).filter(r => r.id !== id))
+        toast.success('Request deleted.')
+      } catch (err: any) {
+        toast.error(`Failed to delete request: ${err.message || err}. Please try again.`)
+      } finally {
+        setDeletingRequestId(null)
       }
-      // Optimistically remove from local state for instant UI feedback.
-      // fetchVehicleRequests will run on next 30s tick to reconcile.
-      setVehicleRequests(prev => (Array.isArray(prev) ? prev : []).filter(r => r.id !== id))
-    } catch (err: any) {
-      alert(`Failed to delete request: ${err.message || err}. Please try again.`)
-    } finally {
-      setDeletingRequestId(null)
-    }
+    })
   }
 
   // Contact Admin — full bidirectional messaging.
@@ -1814,7 +1845,7 @@ export default function Home() {
         err?.message ? err.message :
         err?.error && typeof err.error === 'string' ? err.error :
         'Unknown error'
-      alert(`Failed to send message: ${errMsg}. Please try again.`)
+      toast.error(`Failed to send message: ${errMsg}. Please try again.`)
     }
   }
 
@@ -1847,7 +1878,7 @@ export default function Home() {
         err?.message ? err.message :
         err?.error && typeof err.error === 'string' ? err.error :
         'Unknown error'
-      alert(`Failed to send reply: ${errMsg}. Please try again.`)
+      toast.error(`Failed to send reply: ${errMsg}. Please try again.`)
     } finally {
       setSendingReply(null)
     }
@@ -4102,17 +4133,17 @@ export default function Home() {
                     try {
                       const res = await fetch('/api/auth/delete-account', { method: 'DELETE', credentials: 'include' })
                       if (res.ok) {
-                        alert('Account deleted. You will be logged out.')
+                        toast.error('Account deleted. You will be logged out.')
                         setCurrentUser(null)
                         localStorage.removeItem('ec_user')
                         setShowProfile(false)
                         setView('browse')
                       } else {
                         const data = await res.json()
-                        alert(data.error || 'Failed to delete account')
+                        toast.error(data.error || 'Failed to delete account')
                       }
                     } catch (err: any) {
-                      alert(`Error: ${err.message}`)
+                      toast.error(`Error: ${err.message}`)
                     }
                   }}
                 >
@@ -4123,6 +4154,41 @@ export default function Home() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* GLOBAL CONFIRM DIALOG — replaces all window.confirm() calls.
+          Modern styled AlertDialog that matches the app's dark theme.
+          No more browser URL in the title bar. */}
+      <AlertDialog open={confirmState.open} onOpenChange={(open) => {
+        if (!open) setConfirmState({ ...confirmState, open: false })
+      }}>
+        <AlertDialogContent className="bg-slate-900 border-slate-700 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white text-lg font-bold">
+              {confirmState.title}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-300 text-sm">
+              {confirmState.message}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className={confirmState.destructive
+                ? "bg-red-600 text-white hover:bg-red-700 border-0"
+                : "bg-sky-500 text-white hover:bg-sky-400 border-0"
+              }
+              onClick={() => {
+                confirmState.onConfirm()
+                setConfirmState({ ...confirmState, open: false })
+              }}
+            >
+              {confirmState.confirmLabel || 'Confirm'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
@@ -4631,10 +4697,10 @@ function BroadcastsTab() {
         await fetchBroadcasts()
       } else {
         const data = await res.json()
-        alert(data.error || 'Failed to send broadcast')
+        toast.error(data.error || 'Failed to send broadcast')
       }
     } catch (err: any) {
-      alert(`Error: ${err.message}`)
+      toast.error(`Error: ${err.message}`)
     }
     setSending(false)
   }
@@ -4667,35 +4733,52 @@ function BroadcastsTab() {
         await fetchBroadcasts()
       } else {
         const data = await res.json()
-        alert(data.error || 'Failed to update broadcast')
+        toast.error(data.error || 'Failed to update broadcast')
       }
     } catch (err: any) {
-      alert(`Error: ${err.message}`)
+      toast.error(`Error: ${err.message}`)
     }
     setSavingEdit(false)
   }
 
-  // Delete a broadcast — DELETE /api/broadcasts/[id]
-  const handleDelete = async (id: string, title: string) => {
-    // Confirm before deleting (uses native browser confirm — simple + reliable)
-    const ok = window.confirm(`Delete this broadcast?\n\n"${title}"\n\nThis will permanently remove it from all users' views. This cannot be undone.`)
-    if (!ok) return
-    setDeletingId(id)
-    try {
-      const res = await fetch(`/api/broadcasts/${id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      })
-      if (res.ok) {
-        await fetchBroadcasts()
-      } else {
-        const data = await res.json()
-        alert(data.error || 'Failed to delete broadcast')
-      }
-    } catch (err: any) {
-      alert(`Error: ${err.message}`)
-    }
-    setDeletingId(null)
+  // Delete a broadcast — uses sonner toast with action button instead of
+  // native window.confirm(). Modern styled UI, no browser URL in the title.
+  const handleDelete = (id: string, title: string) => {
+    toast(`Delete "${title}"?`, {
+      duration: 10000,
+      description: 'This will permanently remove it from all users\' views.',
+      action: {
+        label: 'Delete',
+        onClick: async () => {
+          setDeletingId(id)
+          try {
+            const res = await fetch(`/api/broadcasts/${id}`, {
+              method: 'DELETE',
+              credentials: 'include',
+            })
+            if (res.ok) {
+              await fetchBroadcasts()
+              toast.success('Broadcast deleted.')
+            } else {
+              const data = await res.json()
+              toast.error(data.error || 'Failed to delete broadcast')
+            }
+          } catch (err: any) {
+            toast.error(`Error: ${err.message}`)
+          }
+          setDeletingId(null)
+        }
+      },
+      cancel: {
+        label: 'Cancel',
+        onClick: () => {},
+      },
+      style: {
+        background: '#0f172a',
+        color: '#f8fafc',
+        border: '1px solid #dc2626',
+      },
+    })
   }
 
   return (
@@ -5112,10 +5195,10 @@ function UserManagementTab() {
         await fetchUsers(searchQuery)
       } else {
         const data = await res.json()
-        alert(data.error || 'Action failed')
+        toast.error(data.error || 'Action failed')
       }
     } catch (err: any) {
-      alert(`Error: ${err.message}`)
+      toast.error(`Error: ${err.message}`)
     }
   }
 
