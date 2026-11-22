@@ -13,13 +13,28 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const session = await verifySessionToken(token)
     if (!session || session.role !== 'admin') return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     const { id } = await params
+
+    // Check if the broadcast exists first
+    const existing = await db.broadcast.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'Broadcast not found — it may have already been deleted. Refresh the page.' }, { status: 404 })
+    }
+
     // Cascade: delete UserRead records first (no FK constraint in schema, so manual)
-    await db.userRead.deleteMany({ where: { broadcastId: id } })
-    // Then delete the broadcast itself
+    // If this fails, log it but continue — the broadcast can still be deleted
+    try {
+      await db.userRead.deleteMany({ where: { broadcastId: id } })
+    } catch (readErr) {
+      console.error('[broadcasts DELETE] UserRead cleanup failed (continuing):', readErr)
+    }
+
+    // Delete the broadcast itself
     await db.broadcast.delete({ where: { id } })
     return NextResponse.json({ success: true })
   } catch (err: any) {
-    return NextResponse.json({ error: 'Failed to delete broadcast' }, { status: 500 })
+    console.error('[broadcasts DELETE] error:', err)
+    const msg = err?.code === 'P2025' ? 'Broadcast not found — it may have already been deleted.' : `Failed to delete broadcast: ${err?.message || String(err)}`
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
 

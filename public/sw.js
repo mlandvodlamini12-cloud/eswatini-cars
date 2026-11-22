@@ -64,7 +64,7 @@
 //   v2: initial SW for the Vercel-hosted app
 //   v1: legacy SW from the Netlify-hosted app
 
-const CACHE_NAME = 'eswatini-cars-v24';
+const CACHE_NAME = 'eswatini-cars-v25';
 const APP_SHELL = [
   '/',
   '/manifest.json',

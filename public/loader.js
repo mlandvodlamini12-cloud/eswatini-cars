@@ -71,10 +71,16 @@
     })
   }
 
-  // Ask the SW for its version and compare with localStorage
-  function checkSWVersion() {
+  // Ask the SW for its version and compare with localStorage.
+  // Retries up to 10 times (5 seconds) if the SW controller isn't ready yet
+  // (happens when the page loads before the SW has claimed the client).
+  function checkSWVersion(retries) {
+    retries = retries || 0
     if (!navigator.serviceWorker.controller) {
-      // No SW controlling the page yet — first visit. Don't show banner.
+      // Controller not ready yet — retry in 500ms (up to 10 times = 5 seconds)
+      if (retries < 10) {
+        setTimeout(function () { checkSWVersion(retries + 1) }, 500)
+      }
       return
     }
 
@@ -106,6 +112,10 @@
       )
     } catch (e) {
       console.log('[sw-version-check] failed:', e)
+      // Retry once more after a delay
+      if (retries < 10) {
+        setTimeout(function () { checkSWVersion(retries + 1) }, 500)
+      }
     }
   }
 

@@ -198,6 +198,10 @@ public class MainActivity extends AppCompatActivity {
         s.setAllowContentAccess(false);
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        // Lock text zoom to 100% — prevents the WebView from inheriting the
+        // user's Android accessibility "font size" setting, which can make
+        // the app appear zoomed in / text too large on some devices.
+        s.setTextZoom(100);
         s.setUserAgentString(s.getUserAgentString() + " EswatiniCarsApp/1.0");
 
         // Enable third-party cookies (Firebase Auth needs them)
