@@ -17,3 +17,4 @@ export async function GET() {
     releaseNotes: 'Splash screen fixed — no more white background on app launch.',
   })
 }
+// Force re-deploy
