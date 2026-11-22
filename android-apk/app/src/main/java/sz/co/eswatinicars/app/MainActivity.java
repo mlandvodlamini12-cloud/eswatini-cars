@@ -158,6 +158,13 @@ public class MainActivity extends AppCompatActivity {
                 .build();
         mGoogleSignInClient = GoogleSignIn.getClient(this, gso);
 
+        // === IN-APP UPDATE CHECK (runs while WebView loads in background) ===
+        // Checks /api/version for the latest APK version. If the user's installed
+        // version is older, shows an update dialog — exactly like Telegram.
+        // The user taps "Update" → browser opens the APK download URL →
+        // APK downloads → user installs. No GitHub navigation, no settings.
+        checkForUpdate();
+
         // === BACK BUTTON ===
         OnBackPressedCallback backCallback = new OnBackPressedCallback(true) {
             @Override
@@ -390,6 +397,123 @@ public class MainActivity extends AppCompatActivity {
         String js = "window.dispatchEvent(new CustomEvent('native-google-signin'," +
                 "{detail:{ok:false,error:'" + err + "'}}));";
         runOnUiThread(() -> webView.evaluateJavascript(js, null));
+    }
+
+    /**
+     * IN-APP UPDATE CHECK — checks /api/version for the latest APK version.
+     * If the user's installed version is older, shows an update dialog.
+     *
+     * This is how Telegram, WhatsApp, and other non-Play-Store apps handle
+     * updates. The user doesn't need to go to GitHub or check for updates
+     * manually — the app tells them when an update is available.
+     *
+     * Flow:
+     * 1. App starts → fetches /api/version in the background
+     * 2. Compares latestVersionCode with BuildConfig.VERSION_CODE
+     * 3. If newer version available → shows AlertDialog
+     * 4. User taps "Update Now" → opens download URL in browser
+     * 5. APK downloads → user installs → app is updated
+     *
+     * If the check fails (network error, server down), it silently fails —
+     * the user is not blocked from using the app.
+     */
+    private void checkForUpdate() {
+        new Thread(() -> {
+            try {
+                java.net.URL url = new java.net.URL(LAUNCH_URL + "api/version");
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
+                conn.setRequestMethod("GET");
+                conn.connect();
+
+                if (conn.getResponseCode() != 200) return;
+
+                // Read the JSON response
+                java.io.BufferedReader reader = new java.io.BufferedReader(
+                        new java.io.InputStreamReader(conn.getInputStream()));
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) sb.append(line);
+                reader.close();
+                conn.disconnect();
+
+                String json = sb.toString();
+                // Simple JSON parsing (avoid adding org.json dependency)
+                int latestCode = extractJsonInt(json, "latestVersionCode");
+                String latestName = extractJsonString(json, "latestVersionName");
+                String downloadUrl = extractJsonString(json, "downloadUrl");
+                String releaseNotes = extractJsonString(json, "releaseNotes");
+                int minRequired = extractJsonInt(json, "minRequiredVersionCode");
+
+                int currentCode = sz.co.eswatinicars.app.BuildConfig.VERSION_CODE;
+
+                if (latestCode > currentCode) {
+                    // New version available — show update dialog on UI thread
+                    boolean isBlocking = minRequired > currentCode;
+                    runOnUiThread(() -> showUpdateDialog(latestName, downloadUrl, releaseNotes, isBlocking));
+                }
+            } catch (Exception e) {
+                // Silent failure — don't block the user from using the app
+                android.util.Log.w(TAG, "Update check failed: " + e.getMessage());
+            }
+        }).start();
+    }
+
+    /** Show the update dialog — modern styled AlertDialog */
+    private void showUpdateDialog(String newVersion, String downloadUrl, String releaseNotes, boolean isBlocking) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Update Available");
+        builder.setMessage("Version " + newVersion + " is available.\n\n" +
+                (releaseNotes != null ? releaseNotes + "\n\n" : "") +
+                "Tap Update Now to download and install the new version.");
+
+        builder.setPositiveButton("Update Now", (dialog, which) -> {
+            // Open the download URL in the system browser
+            try {
+                Intent browserIntent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(downloadUrl));
+                startActivity(browserIntent);
+            } catch (Exception e) {
+                Toast.makeText(this, "Could not open download link", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        if (isBlocking) {
+            // This version is required — user can't dismiss the dialog
+            builder.setCancelable(false);
+            builder.setNegativeButton("", null);
+        } else {
+            builder.setNegativeButton("Later", (dialog, which) -> dialog.dismiss());
+            builder.setCancelable(true);
+        }
+
+        builder.show();
+    }
+
+    /** Simple JSON string value extractor (avoids org.json dependency) */
+    private String extractJsonString(String json, String key) {
+        String search = "\"" + key + "\":\"";
+        int start = json.indexOf(search);
+        if (start < 0) return null;
+        start += search.length();
+        int end = json.indexOf("\"", start);
+        if (end < 0) return null;
+        return json.substring(start, end);
+    }
+
+    /** Simple JSON integer value extractor */
+    private int extractJsonInt(String json, String key) {
+        String search = "\"" + key + "\":";
+        int start = json.indexOf(search);
+        if (start < 0) return 0;
+        start += search.length();
+        int end = start;
+        while (end < json.length() && Character.isDigit(json.charAt(end))) end++;
+        try {
+            return Integer.parseInt(json.substring(start, end));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     @Override
