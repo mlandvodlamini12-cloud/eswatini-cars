@@ -892,7 +892,7 @@ export default function Home() {
   // Show the most recent unread, un-dismissed one as a sticky banner.
   const fetchBroadcasts = useCallback(async () => {
     try {
-      const res = await fetch(`/api/broadcasts?_t=${Date.now()}?_t=${Date.now()}`, { credentials: 'include' }, cache: 'no-store')
+      const res = await fetch(`/api/broadcasts?_t=${Date.now()}`, { credentials: 'include' , cache: 'no-store' })
       if (!res.ok) return
       const data = await res.json()
       setBroadcasts(data.broadcasts || [])
@@ -1050,7 +1050,7 @@ export default function Home() {
       const uploadResults = await Promise.all(
         validDataUrls.map(async (dataUrl) => {
           try {
-            const res = await fetch(`/api/upload?_t=${Date.now()}?_t=${Date.now()}`, { cache: 'no-store',
+            const res = await fetch(`/api/upload?_t=${Date.now()}`, { cache: 'no-store',
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ image: dataUrl }),
@@ -1277,7 +1277,7 @@ export default function Home() {
           username = (username + 'user' + Math.floor(Math.random() * 1000)).slice(0, 20)
         }
       }
-      const res = await fetch(`/api/auth/register?_t=${Date.now()}?_t=${Date.now()}`, { cache: 'no-store',
+      const res = await fetch(`/api/auth/register?_t=${Date.now()}`, { cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -1355,7 +1355,7 @@ export default function Home() {
       } else {
         payload.password = loginPassword
       }
-      const res = await fetch(`/api/auth/login?_t=${Date.now()}?_t=${Date.now()}`, { cache: 'no-store',
+      const res = await fetch(`/api/auth/login?_t=${Date.now()}`, { cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -1461,7 +1461,7 @@ export default function Home() {
   // Native Google Sign-In (from APK) — email-based, no ID token
   const completeNativeGoogleSignIn = async (email: string, name: string) => {
     console.log('[native-google-signin] email:', email)
-    const res = await fetch(`/api/auth/google?_t=${Date.now()}?_t=${Date.now()}`, { cache: 'no-store',
+    const res = await fetch(`/api/auth/google?_t=${Date.now()}`, { cache: 'no-store',
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -1521,7 +1521,7 @@ export default function Home() {
   useEffect(() => {
     const saved = localStorage.getItem('ec_user')
     if (saved) { try { setCurrentUser(JSON.parse(saved)) } catch {} }
-    fetch(`/api/auth/me?_t=${Date.now()}?_t=${Date.now()}`, { credentials: 'include' }, cache: 'no-store')
+    fetch(`/api/auth/me?_t=${Date.now()}`, { credentials: 'include' , cache: 'no-store' })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.user) {
@@ -1556,7 +1556,7 @@ export default function Home() {
   // local React state, so they vanished on refresh — that was the bug).
   const fetchVehicleRequests = useCallback(async () => {
     try {
-      const res = await fetch(`/api/requests?_t=${Date.now()}?_t=${Date.now()}`, { credentials: 'include' }, cache: 'no-store')
+      const res = await fetch(`/api/requests?_t=${Date.now()}`, { credentials: 'include' , cache: 'no-store' })
       if (!res.ok) return
       const data = await res.json()
       if (Array.isArray(data?.requests)) {
@@ -1595,7 +1595,7 @@ export default function Home() {
     try {
       // If editing an existing request, route to PATCH instead of POST.
       if (editingRequestId) {
-        const res = await fetch(`/api/requests/${ cache: 'no-store',editingRequestId}?_t=${Date.now()}`, {
+        const res = await fetch(`/api/requests/${editingRequestId}?_t=${Date.now()}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -1621,7 +1621,7 @@ export default function Home() {
         setEditingRequestId(null)
       } else {
         // Creating a new request — POST to /api/requests.
-        const res = await fetch(`/api/requests?_t=${Date.now()}?_t=${Date.now()}`, { cache: 'no-store',
+        const res = await fetch(`/api/requests?_t=${Date.now()}`, { cache: 'no-store',
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -1714,7 +1714,7 @@ export default function Home() {
     showConfirm('Delete request?', 'Delete this request? This cannot be undone.', async () => {
       setDeletingRequestId(id)
       try {
-        const res = await fetch(`/api/requests/${ cache: 'no-store',id}?_t=${Date.now()}`, {
+        const res = await fetch(`/api/requests/${id}?_t=${Date.now()}`, {
           method: 'DELETE',
           credentials: 'include',
         })
@@ -1748,7 +1748,7 @@ export default function Home() {
   // local React state and disappear on refresh.
   const fetchMessages = useCallback(async () => {
     try {
-      const res = await fetch(`/api/messages?_t=${Date.now()}?_t=${Date.now()}`, { credentials: 'include' }, cache: 'no-store')
+      const res = await fetch(`/api/messages?_t=${Date.now()}`, { credentials: 'include' , cache: 'no-store' })
       if (!res.ok) return
       const data = await res.json()
       if (Array.isArray(data?.messages)) {
@@ -1764,7 +1764,7 @@ export default function Home() {
   // the Messages button) because the user has now seen the admin's replies.
   const markMessagesAsRead = useCallback(async () => {
     try {
-      await fetch(`/api/messages?_t=${Date.now()}?_t=${Date.now()}`, { cache: 'no-store',
+      await fetch(`/api/messages?_t=${Date.now()}`, { cache: 'no-store',
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -1821,7 +1821,7 @@ export default function Home() {
       return
     }
     try {
-      const res = await fetch(`/api/messages?_t=${Date.now()}?_t=${Date.now()}`, { cache: 'no-store',
+      const res = await fetch(`/api/messages?_t=${Date.now()}`, { cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -1859,7 +1859,7 @@ export default function Home() {
     if (!text.trim()) return
     setSendingReply(messageId)
     try {
-      const res = await fetch(`/api/messages?_t=${Date.now()}?_t=${Date.now()}`, { cache: 'no-store',
+      const res = await fetch(`/api/messages?_t=${Date.now()}`, { cache: 'no-store',
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -4276,7 +4276,7 @@ function AdminDashboard({ vehicleRequests, adminMessages, adminTeam, respondToMe
     // For now, since the user already logged in as admin (server verified
     // the PIN during login), this second gate just needs a simple check.
     // We send the PIN to /api/auth/login again to verify.
-    fetch(`/api/auth/login?_t=${Date.now()}?_t=${Date.now()}`, { cache: 'no-store',
+    fetch(`/api/auth/login?_t=${Date.now()}`, { cache: 'no-store',
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -4673,7 +4673,7 @@ function BroadcastsTab() {
   const fetchBroadcasts = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/broadcasts?_t=${Date.now()}?_t=${Date.now()}`, { credentials: 'include' }, cache: 'no-store')
+      const res = await fetch(`/api/broadcasts?_t=${Date.now()}`, { credentials: 'include' , cache: 'no-store' })
       const data = await res.json()
       setBroadcasts(data.broadcasts || [])
     } catch {}
@@ -4686,7 +4686,7 @@ function BroadcastsTab() {
     if (!form.title || !form.message) return
     setSending(true)
     try {
-      const res = await fetch(`/api/broadcasts?_t=${Date.now()}?_t=${Date.now()}`, { cache: 'no-store',
+      const res = await fetch(`/api/broadcasts?_t=${Date.now()}`, { cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -4722,7 +4722,7 @@ function BroadcastsTab() {
     if (!editForm.title || !editForm.message) return
     setSavingEdit(true)
     try {
-      const res = await fetch(`/api/broadcasts/${ cache: 'no-store',editTarget.id}?_t=${Date.now()}`, {
+      const res = await fetch(`/api/broadcasts/${editTarget.id}?_t=${Date.now()}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -4752,7 +4752,7 @@ function BroadcastsTab() {
         onClick: async () => {
           setDeletingId(id)
           try {
-            const res = await fetch(`/api/broadcasts/${ cache: 'no-store',id}?_t=${Date.now()}`, {
+            const res = await fetch(`/api/broadcasts/${id}?_t=${Date.now()}`, {
               method: 'DELETE',
               credentials: 'include',
             })
@@ -5185,7 +5185,7 @@ function UserManagementTab() {
       : `Unblock ${userName}? They can log in again.`
     if (!confirm(confirmMsg)) return
     try {
-      const res = await fetch(`/api/admin/users?_t=${Date.now()}?_t=${Date.now()}`, { cache: 'no-store',
+      const res = await fetch(`/api/admin/users?_t=${Date.now()}`, { cache: 'no-store',
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
