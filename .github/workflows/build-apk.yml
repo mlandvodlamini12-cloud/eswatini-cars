@@ -117,35 +117,43 @@ jobs:
           echo "Version: $VERSION_NAME (code: $VERSION_CODE)"
 
       - name: Publish production APK as GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.version.outputs.name }}
-          name: Eswatini Cars v${{ steps.version.outputs.name }}
-          body: |
-            ## Eswatini Cars v${{ steps.version.outputs.name }}
-
-            ### What's new
-            - In-app update notifications (like Telegram — app tells you when to update)
-            - Cache fix (no more stale data / deleted items reappearing)
-            - Zoom fix (text no longer enlarged on some devices)
-            - Modern dialogs (no more browser URL in popups)
-            - Google Sign-In fixed
-            - Upload button fixed
-            - Image auto-retry on broken images
-            - Refresh option in hamburger menu
-            - Daily database backup via email
-            - Edit/delete for vehicle requests in admin dashboard
-
-            ### Install
-            1. Download the APK file below
-            2. Tap it in your Downloads folder
-            3. Allow installs from browser if Android prompts
-            4. Open the app
-
-            ### Direct download link (permanent, shareable)
-            https://github.com/mlandvodlamini12-cloud/eswatini-cars/releases/latest/download/Eswatini-Cars.apk
-          files: |
-            android-apk/app/build/outputs/apk/production/release/app-production-release.apk
-          fail_on_unmatched_files: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.name }}"
+          APK_PATH="android-apk/app/build/outputs/apk/production/release/app-production-release.apk"
+          
+          echo "Creating release v$VERSION..."
+          
+          # Delete existing release if it exists (in case of re-runs)
+          gh release delete "v$VERSION" --yes 2>/dev/null || true
+          
+          # Create new release with the APK attached
+          gh release create "v$VERSION" "$APK_PATH" \
+            --title "Eswatini Cars v$VERSION" \
+            --notes "## Eswatini Cars v$VERSION
+
+          ### What's new
+          - In-app update notifications (like Telegram)
+          - Cache fix (no more stale data)
+          - Zoom fix (text no longer enlarged)
+          - Modern dialogs (toast notifications + styled AlertDialogs)
+          - Google Sign-In fixed
+          - Upload button fixed
+          - Image auto-retry on broken images
+          - Refresh option in hamburger menu
+          - Daily database backup via email
+          - Edit/delete for vehicle requests in admin dashboard
+
+          ### Install
+          1. Download the APK file below
+          2. Tap it in your Downloads folder
+          3. Allow installs from browser if Android prompts
+          4. Open the app
+
+          ### Direct download link (permanent, shareable)
+          https://github.com/mlandvodlamini12-cloud/eswatini-cars/releases/latest/download/Eswatini-Cars.apk" \
+            --latest
+          
+          echo "Release v$VERSION created successfully!"
+          echo "Download URL: https://github.com/mlandvodlamini12-cloud/eswatini-cars/releases/latest/download/Eswatini-Cars.apk"
