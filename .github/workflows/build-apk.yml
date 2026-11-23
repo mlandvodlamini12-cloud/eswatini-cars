@@ -70,6 +70,10 @@ jobs:
         working-directory: android-apk
         run: chmod +x ./gradlew
 
+      - name: Clean build directory (prevent cached resources)
+        working-directory: android-apk
+        run: ./gradlew clean --no-daemon
+
       - name: Build production APK (signed release)
         working-directory: android-apk
         run: ./gradlew assembleProductionRelease --no-daemon -Pandroid.suppressUnsupportedCompileSdk=34
