@@ -12,7 +12,7 @@ export async function GET() {
   return NextResponse.json({
     latestVersionCode: 14,
     latestVersionName: '1.3.1',
-    downloadUrl: 'https://github.com/mlandvodlamini12-cloud/eswatini-cars/releases/latest/download/Eswatini-Cars.apk',
+    downloadUrl: 'https://github.com/mlandvodlamini12-cloud/eswatini-cars/releases/latest/download/app-production-release.apk',
     minRequiredVersionCode: 12,
     releaseNotes: 'Splash screen fixed — no more white background on app launch.',
   })

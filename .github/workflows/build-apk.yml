@@ -125,11 +125,14 @@ jobs:
           
           echo "Creating release v$VERSION..."
           
+          # Rename APK to a user-friendly name before uploading
+          cp "$APK_PATH" "Eswatini-Cars.apk"
+          
           # Delete existing release if it exists (in case of re-runs)
           gh release delete "v$VERSION" --yes 2>/dev/null || true
           
-          # Create new release with the APK attached
-          gh release create "v$VERSION" "$APK_PATH" \
+          # Create new release with the APK attached (named Eswatini-Cars.apk)
+          gh release create "v$VERSION" "Eswatini-Cars.apk" \
             --title "Eswatini Cars v$VERSION" \
             --notes "## Eswatini Cars v$VERSION
 
@@ -156,4 +159,3 @@ jobs:
             --latest
           
           echo "Release v$VERSION created successfully!"
-          echo "Download URL: https://github.com/mlandvodlamini12-cloud/eswatini-cars/releases/latest/download/Eswatini-Cars.apk"
