@@ -72,12 +72,15 @@
   }
 
   // Ask the SW for its version and compare with localStorage.
-  // Retries up to 10 times (5 seconds) if the SW controller isn't ready yet
-  // (happens when the page loads before the SW has claimed the client).
+  // If versions differ, the SW just updated — the page already reloaded
+  // (via client.navigate in the SW's activate handler), so the user
+  // already has the fresh content. We just update localStorage silently.
+  // NO BANNER — the banner was confusing users who thought it was an
+  // APK update prompt. The native Android update dialog (in MainActivity)
+  // handles APK updates. The SW handles content updates silently.
   function checkSWVersion(retries) {
     retries = retries || 0
     if (!navigator.serviceWorker.controller) {
-      // Controller not ready yet — retry in 500ms (up to 10 times = 5 seconds)
       if (retries < 10) {
         setTimeout(function () { checkSWVersion(retries + 1) }, 500)
       }
@@ -88,17 +91,7 @@
     channel.port1.onmessage = function (event) {
       if (event.data && event.data.type === 'VERSION') {
         var currentVersion = event.data.version
-        var lastKnownVersion = ''
-        try {
-          lastKnownVersion = localStorage.getItem('ec_sw_version') || ''
-        } catch (e) {}
-
-        if (lastKnownVersion && lastKnownVersion !== currentVersion) {
-          // Version mismatch — a new SW just took over since last visit
-          showUpdateBanner()
-        }
-
-        // Store the current version for next time
+        // Just update localStorage silently — no banner
         try {
           localStorage.setItem('ec_sw_version', currentVersion)
         } catch (e) {}
@@ -110,13 +103,7 @@
         { type: 'GET_VERSION' },
         [channel.port2]
       )
-    } catch (e) {
-      console.log('[sw-version-check] failed:', e)
-      // Retry once more after a delay
-      if (retries < 10) {
-        setTimeout(function () { checkSWVersion(retries + 1) }, 500)
-      }
-    }
+    } catch (e) {}
   }
 
   // ============================================================
