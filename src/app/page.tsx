@@ -504,6 +504,9 @@ export default function Home() {
   const [fuel, setFuel] = useState('all')
   const [transmission, setTransmission] = useState('all')
   const [region, setRegion] = useState('all')
+  // Pagination — shows 6 listings per page with Prev/Next + page numbers
+  const [currentPage, setCurrentPage] = useState(1)
+  const LISTINGS_PER_PAGE = 6
   const [minPrice, setMinPrice] = useState('')
   const [maxPrice, setMaxPrice] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
@@ -2279,16 +2282,53 @@ export default function Home() {
                     <Car className="w-10 h-10 mx-auto mb-2 opacity-30" />
                     No vehicles match your filters.
                     <div className="mt-3">
-                      <Button size="sm" variant="outline" onClick={() => { setQ(''); setType('all'); setFuel('all'); setTransmission('all'); setRegion('all'); setMinPrice(''); setMaxPrice(''); fetchListings(); }}>
+                      <Button size="sm" variant="outline" onClick={() => { setQ(''); setType('all'); setFuel('all'); setTransmission('all'); setRegion('all'); setMinPrice(''); setMaxPrice(''); setCurrentPage(1); fetchListings(); }}>
                         Clear filters
                       </Button>
                     </div>
                   </CardContent>
                 </Card>
               ) : (
+                <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {listings.map(l => <ListingCard key={l.id} listing={l} saved={savedIds.includes(l.id)} onToggleSave={toggleSave} onClick={() => openListingDetail(l)} onEnquire={(id) => { setEnquiryOpen(id); setEnqSubmitted(false); }} />)}
+                  {listings.slice((currentPage - 1) * LISTINGS_PER_PAGE, currentPage * LISTINGS_PER_PAGE).map(l => <ListingCard key={l.id} listing={l} saved={savedIds.includes(l.id)} onToggleSave={toggleSave} onClick={() => openListingDetail(l)} onEnquire={(id) => { setEnquiryOpen(id); setEnqSubmitted(false); }} />)}
                 </div>
+                {(() => {
+                  const totalPages = Math.ceil(listings.length / LISTINGS_PER_PAGE)
+                  if (totalPages <= 1) return null
+                  return (
+                    <div className="flex items-center justify-center gap-2 mt-6 pb-2">
+                      <button
+                        onClick={() => { setCurrentPage(p => Math.max(1, p - 1)); window.scrollTo({ top: 200, behavior: 'smooth' }) }}
+                        disabled={currentPage === 1}
+                        className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm font-medium hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                      >
+                        ← Prev
+                      </button>
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                        <button
+                          key={page}
+                          onClick={() => { setCurrentPage(page); window.scrollTo({ top: 200, behavior: 'smooth' }) }}
+                          className={`w-9 h-9 rounded-lg text-sm font-bold transition-all ${
+                            currentPage === page
+                              ? 'bg-sky-500 text-white'
+                              : 'bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => { setCurrentPage(p => Math.min(totalPages, p + 1)); window.scrollTo({ top: 200, behavior: 'smooth' }) }}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm font-medium hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                      >
+                        Next →
+                      </button>
+                    </div>
+                  )
+                })()}
+                </>
               )}
             </section>
             </FadeIn>
