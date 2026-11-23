@@ -431,11 +431,17 @@ public class MainActivity extends AppCompatActivity {
     private void checkForUpdate() {
         new Thread(() -> {
             try {
-                java.net.URL url = new java.net.URL(LAUNCH_URL + "api/version");
+                // Add cache-busting timestamp to prevent HttpURLConnection from
+                // serving a cached response. Without this, the update popup can
+                // keep appearing even after the user installs the latest version.
+                java.net.URL url = new java.net.URL(LAUNCH_URL + "api/version?_t=" + System.currentTimeMillis());
                 java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
                 conn.setConnectTimeout(5000);
                 conn.setReadTimeout(5000);
                 conn.setRequestMethod("GET");
+                conn.setUseCaches(false);           // Don't use cached response
+                conn.setDefaultUseCaches(false);    // Don't use default cache
+                conn.setRequestProperty("Cache-Control", "no-cache, no-store, must-revalidate");
                 conn.connect();
 
                 if (conn.getResponseCode() != 200) return;
