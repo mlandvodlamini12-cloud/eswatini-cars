@@ -12,7 +12,7 @@ export async function GET() {
   return NextResponse.json({
     latestVersionCode: 15,
     latestVersionName: '1.3.2',
-    downloadUrl: 'https://github.com/mlandvodlamini12-cloud/eswatini-cars/releases/latest/download/app-production-release.apk',
+    downloadUrl: 'https://github.com/mlandvodlamini12-cloud/eswatini-cars/releases/latest/download/Eswatini-Cars.apk',
     minRequiredVersionCode: 12,
     releaseNotes: 'In-app background download — updates download silently, no browser needed.',
   })
