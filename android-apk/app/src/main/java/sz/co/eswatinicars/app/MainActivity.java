@@ -509,8 +509,27 @@ public class MainActivity extends AppCompatActivity {
      * 5. User confirms install → app is updated
      */
     private long updateDownloadId = -1;
+    private AlertDialog progressDlg;
+    private android.os.Handler progressHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private boolean downloadCancelled = false;
 
     private void downloadUpdateInBackground(String downloadUrl, String newVersion) {
+        // Check storage space first
+        java.io.File downloadDir = getExternalFilesDir(null);
+        if (downloadDir != null) {
+            long freeBytes = downloadDir.getFreeSpace();
+            if (freeBytes < 10 * 1024 * 1024) { // less than 10MB free
+                new AlertDialog.Builder(this)
+                        .setTitle("Not Enough Storage")
+                        .setMessage("Your phone needs at least 10 MB of free storage to download the update.\n\n" +
+                                "Please delete some files (old photos, videos, or unused apps) and try again.\n\n" +
+                                "Free space available: " + (freeBytes / 1024 / 1024) + " MB")
+                        .setPositiveButton("OK", null)
+                        .show();
+                return;
+            }
+        }
+
         try {
             android.app.DownloadManager.Request request =
                     new android.app.DownloadManager.Request(android.net.Uri.parse(downloadUrl));
@@ -519,16 +538,30 @@ public class MainActivity extends AppCompatActivity {
             request.setMimeType("application/vnd.android.package-archive");
             request.setNotificationVisibility(
                     android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-            // Save to app-private external storage (no extra permission needed on API 24+)
             request.setDestinationInExternalFilesDir(this, null, "eswatini-cars-update.apk");
 
             android.app.DownloadManager dm =
                     (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
             updateDownloadId = dm.enqueue(request);
 
-            Toast.makeText(this, "Downloading update in background...", Toast.LENGTH_SHORT).show();
+            // Show progress dialog
+            downloadCancelled = false;
+            progressDlg = new AlertDialog.Builder(this)
+                    .setTitle("Downloading Update")
+                    .setMessage("Preparing download... 0%")
+                    .setCancelable(false)
+                    .setNegativeButton("Cancel", (d, w) -> {
+                        downloadCancelled = true;
+                        dm.remove(updateDownloadId);
+                        updateDownloadId = -1;
+                        Toast.makeText(this, "Download cancelled", Toast.LENGTH_SHORT).show();
+                    })
+                    .show();
+
+            // Start polling for progress
+            pollDownloadProgress(dm, newVersion);
+
         } catch (Exception e) {
-            // Fallback: open in browser if DownloadManager fails
             android.util.Log.w(TAG, "DownloadManager failed, opening browser: " + e.getMessage());
             try {
                 Intent browserIntent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(downloadUrl));
@@ -536,6 +569,117 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception e2) {
                 Toast.makeText(this, "Could not download update. Please try again.", Toast.LENGTH_LONG).show();
             }
+        }
+    }
+
+    /**
+     * Polls the DownloadManager every 500ms to check download progress.
+     * Updates the progress dialog with the percentage.
+     * When complete: shows install dialog. When failed: shows error dialog.
+     */
+    private void pollDownloadProgress(android.app.DownloadManager dm, String newVersion) {
+        progressHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (downloadCancelled || updateDownloadId == -1) return;
+
+                android.app.DownloadManager.Query query = new android.app.DownloadManager.Query();
+                query.setFilterById(updateDownloadId);
+                android.database.Cursor cursor = dm.query(query);
+
+                if (cursor != null && cursor.moveToFirst()) {
+                    int status = cursor.getInt(cursor.getColumnIndex(android.app.DownloadManager.COLUMN_STATUS));
+                    int totalBytes = cursor.getInt(cursor.getColumnIndex(android.app.DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+                    int downloadedBytes = cursor.getInt(cursor.getColumnIndex(android.app.DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+                    int reason = cursor.getInt(cursor.getColumnIndex(android.app.DownloadManager.COLUMN_REASON));
+
+                    cursor.close();
+
+                    if (status == android.app.DownloadManager.STATUS_RUNNING) {
+                        // Update progress
+                        int percent = totalBytes > 0 ? (downloadedBytes * 100 / totalBytes) : 0;
+                        String downloadedMB = String.format("%.1f", downloadedBytes / 1024.0 / 1024.0);
+                        String totalMB = totalBytes > 0 ? String.format("%.1f", totalBytes / 1024.0 / 1024.0) : "?";
+                        if (progressDlg != null && progressDlg.isShowing()) {
+                            progressDlg.setMessage("Downloading v" + newVersion + "...\n\n" +
+                                    percent + "% (" + downloadedMB + " / " + totalMB + " MB)");
+                        }
+                        // Continue polling
+                        progressHandler.postDelayed(this, 500);
+
+                    } else if (status == android.app.DownloadManager.STATUS_SUCCESSFUL) {
+                        // Download complete — dismiss progress + show install dialog
+                        if (progressDlg != null && progressDlg.isShowing()) progressDlg.dismiss();
+                        showInstallDialog(dm, newVersion);
+
+                    } else if (status == android.app.DownloadManager.STATUS_FAILED) {
+                        // Download failed — show error
+                        if (progressDlg != null && progressDlg.isShowing()) progressDlg.dismiss();
+                        String errorMsg = getDownloadErrorMessage(reason);
+                        new AlertDialog.Builder(MainActivity.this)
+                                .setTitle("Download Failed")
+                                .setMessage(errorMsg)
+                                .setPositiveButton("Try Again", (d, w) -> {
+                                    String url = "https://github.com/mlandvodlamini12-cloud/eswatini-cars/releases/latest/download/Eswatini-Cars.apk";
+                                    downloadUpdateInBackground(url, newVersion);
+                                })
+                                .setNegativeButton("Cancel", null)
+                                .show();
+                        updateDownloadId = -1;
+
+                    } else if (status == android.app.DownloadManager.STATUS_PENDING) {
+                        if (progressDlg != null && progressDlg.isShowing()) {
+                            progressDlg.setMessage("Waiting to start download...");
+                        }
+                        progressHandler.postDelayed(this, 500);
+                    }
+                } else {
+                    // Cursor empty — download might have been removed
+                    if (cursor != null) cursor.close();
+                    if (progressDlg != null && progressDlg.isShowing()) progressDlg.dismiss();
+                }
+            }
+        }, 500);
+    }
+
+    /** Show the install dialog after download completes */
+    private void showInstallDialog(android.app.DownloadManager dm, String newVersion) {
+        android.net.Uri apkUri = dm.getUriForDownloadedFile(updateDownloadId);
+        if (apkUri != null) {
+            new AlertDialog.Builder(this)
+                    .setTitle("Update Downloaded")
+                    .setMessage("Version " + newVersion + " has been downloaded successfully.\n\nTap Install to apply the update now.")
+                    .setPositiveButton("Install", (d, w) -> {
+                        Intent installIntent = new Intent(Intent.ACTION_VIEW);
+                        installIntent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+                        installIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        startActivity(installIntent);
+                    })
+                    .setNegativeButton("Later", null)
+                    .setCancelable(true)
+                    .show();
+        }
+        updateDownloadId = -1;
+    }
+
+    /** Convert DownloadManager error reason codes to human-readable messages */
+    private String getDownloadErrorMessage(int reason) {
+        switch (reason) {
+            case android.app.DownloadManager.ERROR_INSUFFICIENT_STORAGE:
+                return "Not enough storage space on your phone.\n\nPlease delete some files (old photos, videos, or unused apps) and try again.\n\nYou need at least 10 MB of free space.";
+            case android.app.DownloadManager.ERROR_NETWORK:
+                return "Network error — no internet connection or server unreachable.\n\nCheck your WiFi or mobile data and try again.";
+            case android.app.DownloadManager.ERROR_HTTP:
+                return "Server returned an error.\n\nThe download URL might be temporarily unavailable. Try again in a few minutes.";
+            case android.app.DownloadManager.ERROR_FILE_ERROR:
+                return "File error — couldn't save the downloaded file.\n\nTry again or free up some storage space.";
+            case android.app.DownloadManager.ERROR_TOO_MANY_REDIRECTS:
+                return "Too many redirects from the download server.\n\nPlease try again.";
+            case android.app.DownloadManager.ERROR_UNHANDLED_HTTP_CODE:
+                return "Unexpected server response.\n\nPlease try again.";
+            default:
+                return "Download failed (error code: " + reason + ").\n\nPlease try again. If the problem persists, check your internet connection and available storage space.";
         }
     }
 
