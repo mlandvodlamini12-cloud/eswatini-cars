@@ -10,11 +10,11 @@ import { NextResponse } from 'next/server'
 
 export async function GET() {
   return NextResponse.json({
-    latestVersionCode: 15,
-    latestVersionName: '1.3.2',
+    latestVersionCode: 16,
+    latestVersionName: '1.3.3',
     downloadUrl: 'https://github.com/mlandvodlamini12-cloud/eswatini-cars/releases/latest/download/Eswatini-Cars.apk',
     minRequiredVersionCode: 12,
-    releaseNotes: 'In-app background download — updates download silently, no browser needed.',
+    releaseNotes: 'Clean app icon + splash screen — regenerated from original high-quality logo.',
   })
 }
 // Force re-deploy
