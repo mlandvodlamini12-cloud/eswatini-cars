@@ -165,6 +165,15 @@ public class MainActivity extends AppCompatActivity {
         // APK downloads → user installs. No GitHub navigation, no settings.
         checkForUpdate();
 
+        // Register BroadcastReceiver for in-app APK download completion
+        // When the update APK finishes downloading, the app prompts to install
+        android.content.IntentFilter filter = new android.content.IntentFilter(android.app.DownloadManager.ACTION_DOWNLOAD_COMPLETE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(downloadCompleteReceiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(downloadCompleteReceiver, filter);
+        }
+
         // === BACK BUTTON ===
         OnBackPressedCallback backCallback = new OnBackPressedCallback(true) {
             @Override
@@ -469,17 +478,12 @@ public class MainActivity extends AppCompatActivity {
                 "Tap Update Now to download and install the new version.");
 
         builder.setPositiveButton("Update Now", (dialog, which) -> {
-            // Open the download URL in the system browser
-            try {
-                Intent browserIntent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(downloadUrl));
-                startActivity(browserIntent);
-            } catch (Exception e) {
-                Toast.makeText(this, "Could not open download link", Toast.LENGTH_SHORT).show();
-            }
+            // Download the APK in the background using DownloadManager
+            // The user stays in the app — no browser opens
+            downloadUpdateInBackground(downloadUrl, newVersion);
         });
 
         if (isBlocking) {
-            // This version is required — user can't dismiss the dialog
             builder.setCancelable(false);
             builder.setNegativeButton("", null);
         } else {
@@ -489,6 +493,88 @@ public class MainActivity extends AppCompatActivity {
 
         builder.show();
     }
+
+    /**
+     * IN-APP DOWNLOAD — downloads the APK update in the background using
+     * Android's DownloadManager. The user stays in the app. When the
+     * download completes, the app automatically prompts to install.
+     *
+     * Flow:
+     * 1. User taps "Update Now" → Toast "Downloading update..."
+     * 2. DownloadManager downloads APK in background (system notification shows progress)
+     * 3. When complete → BroadcastReceiver fires → install dialog appears
+     * 4. User taps "Install" → Android package installer opens
+     * 5. User confirms install → app is updated
+     */
+    private long updateDownloadId = -1;
+
+    private void downloadUpdateInBackground(String downloadUrl, String newVersion) {
+        try {
+            android.app.DownloadManager.Request request =
+                    new android.app.DownloadManager.Request(android.net.Uri.parse(downloadUrl));
+            request.setTitle("Eswatini Cars v" + newVersion);
+            request.setDescription("Downloading update...");
+            request.setMimeType("application/vnd.android.package-archive");
+            request.setNotificationVisibility(
+                    android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            // Save to app-private external storage (no extra permission needed on API 24+)
+            request.setDestinationInExternalFilesDir(this, null, "eswatini-cars-update.apk");
+
+            android.app.DownloadManager dm =
+                    (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+            updateDownloadId = dm.enqueue(request);
+
+            Toast.makeText(this, "Downloading update in background...", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            // Fallback: open in browser if DownloadManager fails
+            android.util.Log.w(TAG, "DownloadManager failed, opening browser: " + e.getMessage());
+            try {
+                Intent browserIntent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(downloadUrl));
+                startActivity(browserIntent);
+            } catch (Exception e2) {
+                Toast.makeText(this, "Could not download update. Please try again.", Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+
+    /**
+     * BroadcastReceiver — listens for download completion.
+     * When the APK finishes downloading, automatically prompts the user to install.
+     */
+    private BroadcastReceiver downloadCompleteReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            long id = intent.getLongExtra(android.app.DownloadManager.EXTRA_DOWNLOAD_ID, -1);
+            if (id == updateDownloadId && updateDownloadId != -1) {
+                // Download complete — get the file URI and prompt to install
+                android.app.DownloadManager dm =
+                        (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+
+                // Get the content URI for the downloaded file
+                android.net.Uri apkUri = dm.getUriForDownloadedFile(updateDownloadId);
+
+                if (apkUri != null) {
+                    // Show "Download complete" dialog with Install button
+                    runOnUiThread(() -> {
+                        new AlertDialog.Builder(context)
+                                .setTitle("Update Downloaded")
+                                .setMessage("Version update has been downloaded. Tap Install to apply it now.")
+                                .setPositiveButton("Install", (d, w) -> {
+                                    Intent installIntent = new Intent(Intent.ACTION_VIEW);
+                                    installIntent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+                                    installIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                    installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                                    context.startActivity(installIntent);
+                                })
+                                .setNegativeButton("Later", (d, w) -> d.dismiss())
+                                .setCancelable(true)
+                                .show();
+                    });
+                }
+                updateDownloadId = -1;
+            }
+        }
+    };
 
     /** Simple JSON string value extractor (avoids org.json dependency) */
     private String extractJsonString(String json, String key) {
@@ -526,5 +612,17 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         if (webView != null) CookieManager.getInstance().flush();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        try {
+            if (downloadCompleteReceiver != null) {
+                unregisterReceiver(downloadCompleteReceiver);
+            }
+        } catch (Exception e) {
+            // Receiver might not be registered if app was destroyed early
+        }
     }
 }
