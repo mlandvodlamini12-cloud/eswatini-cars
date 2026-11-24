@@ -2291,7 +2291,7 @@ export default function Home() {
               ) : (
                 <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {listings.slice((currentPage - 1) * LISTINGS_PER_PAGE, currentPage * LISTINGS_PER_PAGE).map(l => <ListingCard key={l.id} listing={l} saved={savedIds.includes(l.id)} onToggleSave={toggleSave} onClick={() => openListingDetail(l)} onEnquire={(id) => { setEnquiryOpen(id); setEnqSubmitted(false); }} />)}
+                  {listings.slice((currentPage - 1) * LISTINGS_PER_PAGE, currentPage * LISTINGS_PER_PAGE).map(l => <ListingCard key={l.id} listing={l} saved={savedIds.includes(l.id)} onToggleSave={toggleSave} onClick={() => openListingDetail(l)} onEnquire={(id) => { setEnquiryOpen(id); setEnqSubmitted(false); }} isAdmin={isAdminEmail(currentUser?.email)} />)}
                 </div>
                 {(() => {
                   const totalPages = Math.ceil(listings.length / LISTINGS_PER_PAGE)
@@ -2934,49 +2934,8 @@ export default function Home() {
                   ? 'Your changes are now visible to all buyers across all apps.'
                   : 'Buyers can see it immediately. When someone enquires, our team will contact you first to verify details.'}
               </p>
-              {/* WhatsApp Channel share — copies message to clipboard + opens Channel directly.
-                  Uses the Channel link (whatsapp.com/channel/...) which opens WhatsApp Business
-                  (where the Channel lives). The message is copied to clipboard so the user can
-                  paste it in the Channel with one long-press. */}
-              {!editingListing && (() => {
-                const channelLink = 'https://whatsapp.com/channel/0029VbDy6vX8aKvCE9VYXf0e'
-                const message =
-                  `🚗 *${sellForm.make} ${sellForm.model}* (${sellForm.year})\n\n` +
-                  `💰 Price: E ${(parseFloat(sellForm.price) || 0).toLocaleString('en-ZA')}\n` +
-                  `📍 Location: ${sellForm.region}\n` +
-                  `⛽ Fuel: ${sellForm.fuelType}\n` +
-                  `⚙️ Transmission: ${sellForm.transmission}\n` +
-                  (sellForm.mileage ? `🛣️ Mileage: ${parseInt(sellForm.mileage).toLocaleString()} km\n` : '') +
-                  (sellForm.color ? `🎨 Color: ${sellForm.color}\n` : '') +
-                  `\n${sellForm.description}\n\n` +
-                  `🔗 View on Eswatini Cars: https://eswatini-cars.vercel.app\n\n` +
-                  `_Posted via Eswatini Cars app_`
-                const handleShare = async () => {
-                  // Step 1: Copy message to clipboard
-                  try {
-                    await navigator.clipboard.writeText(message)
-                    toast.success('Message copied! Paste it in your Channel.')
-                  } catch {
-                    // Fallback for older browsers
-                    const textarea = document.createElement('textarea')
-                    textarea.value = message
-                    document.body.appendChild(textarea)
-                    textarea.select()
-                    document.execCommand('copy')
-                    document.body.removeChild(textarea)
-                    toast.success('Message copied! Paste it in your Channel.')
-                  }
-                  // Step 2: Open WhatsApp Business Channel directly
-                  window.open(channelLink, '_blank')
-                }
-                return (
-                  <button onClick={handleShare}
-                    className="inline-flex items-center gap-2 bg-[#25D366] text-white px-5 py-3 rounded-xl font-semibold text-sm hover:bg-[#1DA851] transition-colors">
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.263.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                    Share to WhatsApp Channel
-                  </button>
-                )
-              })()}
+              {/* WhatsApp Channel share removed from user view — now admin-only via listing cards */}
+              {!editingListing && null}
               <div className="flex gap-2 justify-center">
                 <Button onClick={() => { setSellOpen(false); setSellSubmitted(false); setEditingListing(null); setView('browse'); apiFetchListings().then(setListings); }}>View my listing</Button>
               </div>
@@ -4279,13 +4238,14 @@ export default function Home() {
 }
 
 function ListingCard({
-  listing, saved, onToggleSave, onClick, onEnquire,
+  listing, saved, onToggleSave, onClick, onEnquire, isAdmin,
 }: {
   listing: Listing
   saved: boolean
   onToggleSave: (id: string) => void
   onClick: () => void
   onEnquire: (id: string) => void
+  isAdmin?: boolean
 }) {
   // Use first image as primary (gallery support — stored as comma-separated)
   const primaryImage = listing.imageUrl ? listing.imageUrl.split('|')[0] : null
@@ -4334,6 +4294,41 @@ function ListingCard({
         <Button size="sm" className="w-full bg-sky-500 text-white hover:bg-sky-400 hover:shadow-lg hover:shadow-sky-500/30 transition-all" onClick={() => onEnquire(listing.id)}>
           <MessageSquare className="w-3.5 h-3.5 mr-1" /> Buy/Enquire
         </Button>
+        {/* Admin-only: Copy listing details for WhatsApp Channel posting */}
+        {isAdmin && (
+          <button
+            onClick={async (e) => {
+              e.stopPropagation()
+              const msg =
+                `🚗 *${listing.make} ${listing.model}* (${listing.year})\n\n` +
+                `💰 Price: ${fmt(listing.price, listing.currency)}\n` +
+                `📍 Location: ${listing.region}\n` +
+                `⛽ Fuel: ${listing.fuelType}\n` +
+                `⚙️ Transmission: ${listing.transmission}\n` +
+                `🛣️ Mileage: ${listing.mileage.toLocaleString()} km\n` +
+                (listing.color ? `🎨 Color: ${listing.color}\n` : '') +
+                `\n${listing.description}\n\n` +
+                `🔗 View on Eswatini Cars: https://eswatini-cars.vercel.app`
+              try {
+                await navigator.clipboard.writeText(msg)
+                import('sonner').then(({ toast }) => toast.success('Listing copied for WhatsApp!'))
+              } catch {
+                const ta = document.createElement('textarea')
+                ta.value = msg
+                document.body.appendChild(ta)
+                ta.select()
+                document.execCommand('copy')
+                document.body.removeChild(ta)
+                import('sonner').then(({ toast }) => toast.success('Listing copied for WhatsApp!'))
+              }
+            }}
+            className="w-full mt-2 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-[#25D366]/10 border border-[#25D366]/30 text-[#25D366] text-xs font-medium hover:bg-[#25D366]/20 transition-all"
+            title="Copy listing details for WhatsApp Channel"
+          >
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.263.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+            Copy for WhatsApp
+          </button>
+        )}
       </CardContent>
     </Card>
   )
