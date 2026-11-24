@@ -1343,6 +1343,11 @@ export default function Home() {
   const [showForgotPassword, setShowForgotPassword] = useState(false)
   const [forgotEmail, setForgotEmail] = useState('')
   const [forgotSent, setForgotSent] = useState(false)
+  const [forgotToken, setForgotToken] = useState('')
+  const [forgotName, setForgotName] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [resetDone, setResetDone] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
   const [profileForm, setProfileForm] = useState({ name: '', email: '', phone: '', password: '', newPassword: '' })
   const submitLogin = async () => {
@@ -4097,12 +4102,51 @@ export default function Home() {
             <DialogTitle className="flex items-center gap-2"><Mail className="w-5 h-5 text-sky-500" /> Forgot Password</DialogTitle>
             <DialogDescription className="text-slate-300">Enter your email and we'll send you a reset link.</DialogDescription>
           </DialogHeader>
-          {forgotSent ? (
+          {resetDone ? (
             <div className="text-center py-6 space-y-2">
               <CheckCircle2 className="w-12 h-12 mx-auto text-emerald-500" />
-              <p className="font-semibold">Reset link sent!</p>
-              <p className="text-sm text-slate-500">Check your email inbox (and spam folder) for a password reset link. The link expires in 1 hour.</p>
-              <Button onClick={() => { setShowForgotPassword(false); setForgotSent(false) }}>Close</Button>
+              <p className="font-semibold">Password Updated!</p>
+              <p className="text-sm text-slate-500">You can now log in with your new password.</p>
+              <Button onClick={() => { setShowForgotPassword(false); setResetDone(false); setForgotSent(false); setForgotEmail(''); setNewPassword(''); setConfirmPassword(''); setForgotToken('') }}>Close</Button>
+            </div>
+          ) : forgotSent ? (
+            <div className="space-y-3">
+              <p className="text-sm text-slate-300">Hi {forgotName}, enter your new password below.</p>
+              <div>
+                <Label className="text-white">New Password *</Label>
+                <Input className="text-white" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Min 8 characters" />
+              </div>
+              <div>
+                <Label className="text-white">Confirm Password *</Label>
+                <Input className="text-white" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Re-enter password" />
+              </div>
+              {newPassword && confirmPassword && newPassword !== confirmPassword && (
+                <p className="text-xs text-red-400">Passwords do not match</p>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setShowForgotPassword(false); setForgotSent(false) }}>Cancel</Button>
+                <Button
+                  className="bg-sky-500 text-white hover:bg-sky-400"
+                  disabled={!newPassword || newPassword !== confirmPassword || newPassword.length < 8}
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(`/api/auth/reset-password?_t=${Date.now()}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ token: forgotToken, newPassword }),
+                      })
+                      if (res.ok) {
+                        setResetDone(true)
+                      } else {
+                        const data = await res.json().catch(() => ({}))
+                        toast.error(data.error || 'Failed to reset password.')
+                      }
+                    } catch {
+                      toast.error('Network error. Try again.')
+                    }
+                  }}
+                >Reset Password</Button>
+              </DialogFooter>
             </div>
           ) : (
             <div className="space-y-3">
@@ -4114,16 +4158,18 @@ export default function Home() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: forgotEmail }),
                   })
-                  if (res.ok) {
+                  const data = await res.json()
+                  if (res.ok && data.token) {
+                    setForgotToken(data.token)
+                    setForgotName(data.name || '')
                     setForgotSent(true)
                   } else {
-                    const data = await res.json().catch(() => ({}))
-                    toast.error(data.error || 'Could not send reset email. Try again.')
+                    toast.error(data.error || 'Could not verify email.')
                   }
                 } catch {
                   toast.error('Network error. Try again.')
                 }
-              }}>Send reset link</Button></DialogFooter>
+              }}>Next</Button></DialogFooter>
             </div>
           )}
         </DialogContent>

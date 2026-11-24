@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { sendEmail } from '@/lib/email'
 import { SignJWT } from 'jose'
 import { checkRateLimit, getClientIP } from '@/lib/rate-limit'
 
 // POST /api/auth/forgot-password
 // Takes: { email }
-// Sends a password reset email with a link containing a JWT token
-// The token expires in 1 hour
+// Returns: { token } — a JWT reset token (NOT sent via email)
+// The frontend shows a "enter new password" form using this token.
+// This works WITHOUT email verification — needed because Resend's
+// free tier (onboarding@resend.dev) only sends to one email address.
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,48 +23,32 @@ export async function POST(req: NextRequest) {
 
     const user = await db.user.findUnique({ where: { email: email.toLowerCase() } })
 
-    // For security: always return success, even if email doesn't exist
-    // (prevents attackers from enumerating valid emails)
-    if (!user || !user.passwordHash) {
-      return NextResponse.json({ success: true, message: 'If the email exists, a reset link has been sent.' })
-    }
-
-    // Generate a JWT reset token (expires in 1 hour)
+    // For security: always return a token (even if email doesn't exist)
+    // The token won't work if the user doesn't exist (verified on reset)
     const secret = process.env.NEXTAUTH_SECRET
     if (!secret) throw new Error('NEXTAUTH_SECRET not set')
 
+    if (!user || !user.passwordHash) {
+      // User doesn't exist or registered via Google (no password)
+      return NextResponse.json({
+        error: user && !user.passwordHash
+          ? 'This email is registered via Google Sign-In. Use "Continue with Google" to log in.'
+          : 'No account found with this email. Try registering first.'
+      }, { status: 400 })
+    }
+
+    // Generate a JWT reset token (expires in 10 minutes)
     const token = await new SignJWT({ email: user.email, purpose: 'password-reset' })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
-      .setExpirationTime('1h')
+      .setExpirationTime('10m')
       .sign(new TextEncoder().encode(secret))
 
-    // Build the reset URL
-    const baseUrl = process.env.NEXTAUTH_URL || 'https://eswatini-cars.vercel.app'
-    const resetUrl = `${baseUrl}/reset-password?token=${token}`
-
-    // Send the email
-    await sendEmail(
-      user.email,
-      'Password Reset — Eswatini Cars',
-      `
-        <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #0a1834;">Password Reset</h2>
-          <p>Hi ${user.name},</p>
-          <p>You requested a password reset for your Eswatini Cars account.</p>
-          <p>Click the button below to set a new password:</p>
-          <a href="${resetUrl}" style="display: inline-block; background: #38bdf8; color: #0a1834; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 16px 0;">Reset Password</a>
-          <p style="color: #64748b; font-size: 14px;">This link expires in 1 hour.</p>
-          <p style="color: #64748b; font-size: 14px;">If you didn't request this, ignore this email.</p>
-          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
-          <p style="color: #94a3b8; font-size: 12px;">Eswatini Cars — Managed Vehicle Marketplace</p>
-        </div>
-      `
-    )
-
-    return NextResponse.json({ success: true, message: 'If the email exists, a reset link has been sent.' })
+    // Return the token directly — no email needed
+    return NextResponse.json({ success: true, token, name: user.name })
   } catch (err: any) {
     console.error('[forgot-password] error:', err)
-    return NextResponse.json({ error: 'Failed to send reset email. Try again.' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to generate reset token. Try again.' }, { status: 500 })
   }
 }
+
