@@ -578,9 +578,32 @@ public class MainActivity extends AppCompatActivity {
                     (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
             updateDownloadId = dm.enqueue(request);
 
-            // Show in-app progress dialog
+            // Show in-app progress dialog (built programmatically — no XML layout needed)
             progressDialog = new android.app.Dialog(this);
-            progressDialog.setContentView(R.layout.download_progress);
+            android.widget.LinearLayout pl = new android.widget.LinearLayout(this);
+            pl.setOrientation(android.widget.LinearLayout.VERTICAL);
+            pl.setPadding(60, 60, 60, 60);
+            pl.setBackgroundColor(0xFF0F172A);
+            android.widget.TextView ptitle = new android.widget.TextView(this);
+            ptitle.setText("Downloading Update");
+            ptitle.setTextColor(0xFFFFFFFF);
+            ptitle.setTextSize(20);
+            ptitle.setPadding(0, 0, 0, 40);
+            pl.addView(ptitle);
+            android.widget.ProgressBar pbar = new android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+            pbar.setMax(100);
+            pbar.setProgress(0);
+            pbar.setId(android.R.id.text1);
+            pl.addView(pbar);
+            android.widget.TextView ptext = new android.widget.TextView(this);
+            ptext.setText("0%");
+            ptext.setTextColor(0xFF94A3B8);
+            ptext.setTextSize(14);
+            ptext.setGravity(android.view.Gravity.CENTER);
+            ptext.setPadding(0, 20, 0, 0);
+            ptext.setId(android.R.id.text2);
+            pl.addView(ptext);
+            progressDialog.setContentView(pl);
             progressDialog.setCancelable(false);
             progressDialog.show();
 
@@ -621,8 +644,8 @@ public class MainActivity extends AppCompatActivity {
                         String dlMB = String.format("%.1f", downloaded / 1048576.0);
                         String totalMB = total > 0 ? String.format("%.1f", total / 1048576.0) : "?";
                         if (progressDialog != null && progressDialog.isShowing()) {
-                            android.widget.ProgressBar bar = progressDialog.findViewById(R.id.progress_bar);
-                            android.widget.TextView text = progressDialog.findViewById(R.id.progress_text);
+                            android.widget.ProgressBar bar = progressDialog.findViewById(android.R.id.text1);
+                            android.widget.TextView text = progressDialog.findViewById(android.R.id.text2);
                             if (bar != null) bar.setProgress(percent);
                             if (text != null) text.setText(percent + "%  (" + dlMB + " / " + totalMB + " MB)");
                         }
@@ -698,7 +721,7 @@ public class MainActivity extends AppCompatActivity {
                 android.app.DownloadManager dm =
                         (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
                 if (progressDialog != null && progressDialog.isShowing()) progressDialog.dismiss();
-                showInstallDialog(dm, extractJsonString("", "latestVersionName"));
+                showInstallDialog(dm, "update");
             }
         }
     };
