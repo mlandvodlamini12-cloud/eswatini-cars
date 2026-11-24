@@ -12,7 +12,7 @@ if (!resend) {
   console.warn('[resend] RESEND_API_KEY not set — emails will be logged only')
 }
 
-const FROM = process.env.EMAIL_FROM || 'Eswatini Cars <noreply@eswatinicars.com>'
+const FROM = process.env.EMAIL_FROM || 'Eswatini Cars <onboarding@resend.dev>'
 const ADMIN_EMAIL = process.env.EMAIL_ADMIN || ''
 
 export interface EmailResult {

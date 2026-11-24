@@ -4114,9 +4114,14 @@ export default function Home() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: forgotEmail }),
                   })
-                  setForgotSent(true)
+                  if (res.ok) {
+                    setForgotSent(true)
+                  } else {
+                    const data = await res.json().catch(() => ({}))
+                    toast.error(data.error || 'Could not send reset email. Try again.')
+                  }
                 } catch {
-                  toast.error('Could not send reset email. Try again.')
+                  toast.error('Network error. Try again.')
                 }
               }}>Send reset link</Button></DialogFooter>
             </div>
