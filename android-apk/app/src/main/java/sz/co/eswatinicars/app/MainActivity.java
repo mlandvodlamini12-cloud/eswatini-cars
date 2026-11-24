@@ -385,6 +385,67 @@ public class MainActivity extends AppCompatActivity {
         public void showToast(String msg) {
             runOnUiThread(() -> Toast.makeText(MainActivity.this, msg, Toast.LENGTH_SHORT).show());
         }
+
+        /**
+         * Share an image + text via Android's native share sheet.
+         * Downloads the image from the URL, saves to cache, then launches
+         * an ACTION_SEND intent with the image attached + text pre-filled.
+         * The user selects WhatsApp from the share sheet.
+         */
+        @JavascriptInterface
+        public void shareImage(final String imageUrl, final String text) {
+            new Thread(() -> {
+                try {
+                    // Download the image
+                    java.net.URL url = new java.net.URL(imageUrl);
+                    java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+                    conn.setConnectTimeout(10000);
+                    conn.setReadTimeout(10000);
+                    conn.connect();
+
+                    java.io.InputStream is = conn.getInputStream();
+                    java.io.File cacheDir = getExternalCacheDir();
+                    java.io.File imageFile = new java.io.File(cacheDir, "eswatini-cars-share.jpg");
+                    java.io.FileOutputStream fos = new java.io.FileOutputStream(imageFile);
+
+                    byte[] buffer = new byte[4096];
+                    int len;
+                    while ((len = is.read(buffer)) > 0) {
+                        fos.write(buffer, 0, len);
+                    }
+                    fos.close();
+                    is.close();
+                    conn.disconnect();
+
+                    // Get content URI via FileProvider (required for Android 7+)
+                    android.net.Uri imageUri = androidx.core.content.FileProvider.getUriForFile(
+                            MainActivity.this,
+                            getApplicationContext().getPackageName() + ".fileprovider",
+                            imageFile);
+
+                    // Create share intent with image + text
+                    Intent shareIntent = new Intent(Intent.ACTION_SEND);
+                    shareIntent.setType("image/*");
+                    shareIntent.putExtra(Intent.EXTRA_STREAM, imageUri);
+                    shareIntent.putExtra(Intent.EXTRA_TEXT, text);
+                    shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    shareIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+                    // Launch Android's native share sheet
+                    runOnUiThread(() -> {
+                        startActivity(Intent.createChooser(shareIntent, "Share to WhatsApp"));
+                    });
+
+                } catch (Exception e) {
+                    android.util.Log.e(TAG, "shareImage failed: " + e.getMessage());
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this,
+                            "Share failed. Falling back to text only.", Toast.LENGTH_SHORT).show());
+                    // Fallback: dispatch event so JS can copy text to clipboard
+                    String js = "window.dispatchEvent(new CustomEvent('native-share-fallback',{detail:{text:'" + text.replace("'", "\\'") + "'}}));";
+                    runOnUiThread(() -> webView.evaluateJavascript(js, null));
+                }
+            }).start();
+        }
     }
 
     /**
