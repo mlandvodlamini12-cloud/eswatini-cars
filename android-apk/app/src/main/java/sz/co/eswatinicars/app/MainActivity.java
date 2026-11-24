@@ -540,8 +540,8 @@ public class MainActivity extends AppCompatActivity {
 
     /** Show the update dialog — modern Material styled dialog */
     private void showUpdateDialog(String newVersion, String downloadUrl, String releaseNotes, boolean isBlocking) {
-        com.google.android.material.dialog.MaterialAlertDialogBuilder builder =
-                new com.google.android.material.dialog.MaterialAlertDialogBuilder(this);
+        AlertDialog.Builder builder =
+                new AlertDialog.Builder(this);
         builder.setTitle("Update Available");
         builder.setMessage("Version " + newVersion + " is available.\n\n" +
                 (releaseNotes != null ? releaseNotes + "\n\n" : "") +
@@ -658,7 +658,7 @@ public class MainActivity extends AppCompatActivity {
                     } else if (status == android.app.DownloadManager.STATUS_FAILED) {
                         if (progressDialog != null && progressDialog.isShowing()) progressDialog.dismiss();
                         String err = getError(reason);
-                        new com.google.android.material.dialog.MaterialAlertDialogBuilder(MainActivity.this)
+                        new AlertDialog.Builder(MainActivity.this)
                                 .setTitle("Download Failed")
                                 .setMessage(err)
                                 .setPositiveButton("Retry", (d, w) -> {
@@ -684,7 +684,7 @@ public class MainActivity extends AppCompatActivity {
     private void showInstallDialog(android.app.DownloadManager dm, String newVersion) {
         android.net.Uri apkUri = dm.getUriForDownloadedFile(updateDownloadId);
         if (apkUri != null) {
-            new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            new AlertDialog.Builder(this)
                     .setTitle("Update Downloaded")
                     .setMessage("Version " + newVersion + " is ready.\nTap Install to apply it now.")
                     .setPositiveButton("Install", (d, w) -> {
