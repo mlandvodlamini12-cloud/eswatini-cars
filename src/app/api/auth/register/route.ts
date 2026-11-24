@@ -28,7 +28,13 @@ export async function POST(req: NextRequest) {
     if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) return NextResponse.json({ error: 'Username must be 3-20 characters (letters, numbers, underscores only)' }, { status: 400 })
 
     const existingEmail = await db.user.findUnique({ where: { email: email.toLowerCase() } })
-    if (existingEmail) return NextResponse.json({ error: 'Email already registered. Try logging in instead.' }, { status: 409 })
+    if (existingEmail) {
+      // Check if the user registered via Google (no password)
+      if (!existingEmail.passwordHash) {
+        return NextResponse.json({ error: 'This email is registered via Google Sign-In. Please use "Continue with Google" to log in.' }, { status: 409 })
+      }
+      return NextResponse.json({ error: 'Email already registered. Try logging in instead.' }, { status: 409 })
+    }
     const existingUsername = await db.user.findUnique({ where: { username: username.toLowerCase() } })
     if (existingUsername) return NextResponse.json({ error: 'Username already taken. Please choose another.' }, { status: 409 })
 

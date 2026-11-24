@@ -1327,7 +1327,13 @@ export default function Home() {
       setOtpCode('')
       setConfirmationResult(null)
     } catch (err: any) {
-      toast.error(`Registration failed: ${err.message || err}. Please try again.`)
+      const errMsg = err.message || err
+      // Check if the email is already registered via Google Sign-In
+      if (errMsg.includes('already registered')) {
+        toast.error('This email is already registered. If you signed up with Google, tap "Continue with Google" to log in. Otherwise, tap "Login" and enter your password.')
+      } else {
+        toast.error(`Registration failed: ${errMsg}. Please try again.`)
+      }
     }
   }
 
@@ -1921,7 +1927,7 @@ export default function Home() {
           experience (no address bar). Only shown if browser fired beforeinstallprompt
           event AND user hasn't dismissed it before. */}
       {showInstallBanner && deferredPrompt && (
-        <div className="fixed bottom-4 left-4 right-4 z-[100] bg-gradient-to-r from-sky-600 to-sky-500 text-white rounded-xl shadow-2xl p-4 flex items-center gap-3 max-w-md mx-auto">
+        <div className={`fixed bottom-4 left-4 right-4 z-[100] bg-gradient-to-r from-sky-600 to-sky-500 text-white rounded-xl shadow-2xl p-4 flex items-center gap-3 max-w-md mx-auto ${showLogin || showRegister || sellOpen || enquiryOpen ? 'hidden' : ''}`}>
           <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -3741,31 +3747,21 @@ export default function Home() {
                 </span>
               </label>
 
-              <DialogFooter>
+              <DialogFooter className="flex-col gap-2">
                 <Button variant="outline" onClick={() => setShowRegister(false)}>Cancel</Button>
+                {/* Direct registration — no OTP/reCAPTCHA needed.
+                    Phone verification via Firebase doesn't work reliably in the
+                    Android WebView (reCAPTCHA errors). Users can register with
+                    just email + password. Phone is optional. */}
                 <Button
-                  className="bg-sky-500 text-white hover:bg-sky-400"
+                  className="bg-sky-500 text-white hover:bg-sky-400 w-full"
                   disabled={!registerForm.name || !registerForm.email || registerForm.password.length < 8 || !registerForm.phone || !agreedToTerms}
-                  onClick={async () => {
-                    if (!registerForm.phone) return
-                    // Send OTP via Firebase phone auth (falls back to dev mock).
-                    await sendOTP(registerForm.phone)
-                    // If the user is registering without phone, just submit normally.
-                    if (phoneVerifyStep !== 'otp') return
-                  }}
+                  onClick={submitRegister}
                 >
-                  Send OTP
+                  Create Account
                 </Button>
-                {/* Quick-register without phone verification (for testing/dev).
-                    Also requires the T&C checkbox to be checked. */}
-                <Button variant="ghost" className="w-full text-xs text-slate-500" disabled={!agreedToTerms} onClick={submitRegister}>Skip phone verification →</Button>
               </DialogFooter>
-              <p className="text-[10px] text-slate-500 text-center">⚠️ Phone OTP via Firebase. Email verification requires a cloud email service.</p>
-              {/* Invisible reCAPTCHA container — Firebase Phone Auth needs this div
-                  to exist in the DOM so it can render the reCAPTCHA challenge.
-                  The div is empty and invisible (no visible UI), but Firebase
-                  will inject its own iframe inside it during the OTP send. */}
-              <div id="recaptcha-container" className="recaptcha-container" aria-hidden="true" />
+              <p className="text-[10px] text-slate-500 text-center">Free to register. Your phone number is never published.</p>
             </div>
           )}
         </DialogContent>
