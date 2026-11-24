@@ -16,7 +16,7 @@ android {
         // applicationId is now set per-flavor (see productFlavors below)
         minSdk 24          // Android 7.0 — covers ~98% of devices in Eswatini
         targetSdk 34       // required for Play Store submission
-        versionCode 21
+        versionCode 20
         versionName "1.3.8"
     }
 
