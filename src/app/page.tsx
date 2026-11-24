@@ -4101,13 +4101,24 @@ export default function Home() {
             <div className="text-center py-6 space-y-2">
               <CheckCircle2 className="w-12 h-12 mx-auto text-emerald-500" />
               <p className="font-semibold">Reset link sent!</p>
-              <p className="text-sm text-slate-500">⚠️ This is a demo. Real email sending requires a cloud email service (Resend, SendGrid) — coming when you connect to cloud.</p>
+              <p className="text-sm text-slate-500">Check your email inbox (and spam folder) for a password reset link. The link expires in 1 hour.</p>
               <Button onClick={() => { setShowForgotPassword(false); setForgotSent(false) }}>Close</Button>
             </div>
           ) : (
             <div className="space-y-3">
               <div><Label className="text-white">Email *</Label><Input className="text-white" type="email" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} placeholder="john@email.com" /></div>
-              <DialogFooter><Button variant="outline" onClick={() => setShowForgotPassword(false)}>Cancel</Button><Button className="bg-sky-500 text-white hover:bg-sky-400" disabled={!forgotEmail} onClick={() => setForgotSent(true)}>Send reset link</Button></DialogFooter>
+              <DialogFooter><Button variant="outline" onClick={() => setShowForgotPassword(false)}>Cancel</Button><Button className="bg-sky-500 text-white hover:bg-sky-400" disabled={!forgotEmail} onClick={async () => {
+                try {
+                  const res = await fetch(`/api/auth/forgot-password?_t=${Date.now()}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: forgotEmail }),
+                  })
+                  setForgotSent(true)
+                } catch {
+                  toast.error('Could not send reset email. Try again.')
+                }
+              }}>Send reset link</Button></DialogFooter>
             </div>
           )}
         </DialogContent>
