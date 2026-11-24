@@ -538,23 +538,20 @@ public class MainActivity extends AppCompatActivity {
         }).start();
     }
 
-    /** Show the update dialog — modern styled AlertDialog */
+    /** Show the update dialog — modern Material styled dialog */
     private void showUpdateDialog(String newVersion, String downloadUrl, String releaseNotes, boolean isBlocking) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        com.google.android.material.dialog.MaterialAlertDialogBuilder builder =
+                new com.google.android.material.dialog.MaterialAlertDialogBuilder(this);
         builder.setTitle("Update Available");
         builder.setMessage("Version " + newVersion + " is available.\n\n" +
                 (releaseNotes != null ? releaseNotes + "\n\n" : "") +
                 "Tap Update Now to download and install the new version.");
-
         builder.setPositiveButton("Update Now", (dialog, which) -> {
-            // Download the APK in the background using DownloadManager
-            // The user stays in the app — no browser opens
             downloadUpdateInBackground(downloadUrl, newVersion);
         });
 
         if (isBlocking) {
             builder.setCancelable(false);
-            builder.setNegativeButton("", null);
         } else {
             builder.setNegativeButton("Later", (dialog, which) -> dialog.dismiss());
             builder.setCancelable(true);
@@ -563,19 +560,8 @@ public class MainActivity extends AppCompatActivity {
         builder.show();
     }
 
-    /**
-     * IN-APP DOWNLOAD — downloads the APK update in the background using
-     * Android's DownloadManager. The user stays in the app. When the
-     * download completes, the app automatically prompts to install.
-     *
-     * Flow:
-     * 1. User taps "Update Now" → Toast "Downloading update..."
-     * 2. DownloadManager downloads APK in background (system notification shows progress)
-     * 3. When complete → BroadcastReceiver fires → install dialog appears
-     * 4. User taps "Install" → Android package installer opens
-     * 5. User confirms install → app is updated
-     */
     private long updateDownloadId = -1;
+    private android.app.Dialog progressDialog;
 
     private void downloadUpdateInBackground(String downloadUrl, String newVersion) {
         try {
@@ -585,62 +571,134 @@ public class MainActivity extends AppCompatActivity {
             request.setDescription("Downloading update...");
             request.setMimeType("application/vnd.android.package-archive");
             request.setNotificationVisibility(
-                    android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-            // Save to app-private external storage (no extra permission needed on API 24+)
+                    android.app.DownloadManager.Request.VISIBILITY_VISIBLE);
             request.setDestinationInExternalFilesDir(this, null, "eswatini-cars-update.apk");
 
             android.app.DownloadManager dm =
                     (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
             updateDownloadId = dm.enqueue(request);
 
-            Toast.makeText(this, "Downloading update in background...", Toast.LENGTH_SHORT).show();
+            // Show in-app progress dialog
+            progressDialog = new android.app.Dialog(this);
+            progressDialog.setContentView(R.layout.download_progress);
+            progressDialog.setCancelable(false);
+            progressDialog.show();
+
+            // Start polling for progress
+            pollProgress(dm, newVersion);
+
         } catch (Exception e) {
-            // Fallback: open in browser if DownloadManager fails
-            android.util.Log.w(TAG, "DownloadManager failed, opening browser: " + e.getMessage());
+            android.util.Log.w(TAG, "Download failed, opening browser: " + e.getMessage());
             try {
                 Intent browserIntent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(downloadUrl));
                 startActivity(browserIntent);
             } catch (Exception e2) {
-                Toast.makeText(this, "Could not download update. Please try again.", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Could not download update.", Toast.LENGTH_LONG).show();
             }
         }
     }
 
-    /**
-     * BroadcastReceiver — listens for download completion.
-     * When the APK finishes downloading, automatically prompts the user to install.
-     */
+    private void pollProgress(android.app.DownloadManager dm, String newVersion) {
+        final android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+        Runnable poller = new Runnable() {
+            @Override
+            public void run() {
+                if (updateDownloadId == -1) return;
+
+                android.app.DownloadManager.Query query = new android.app.DownloadManager.Query();
+                query.setFilterById(updateDownloadId);
+                android.database.Cursor cursor = dm.query(query);
+
+                if (cursor != null && cursor.moveToFirst()) {
+                    int status = cursor.getInt(cursor.getColumnIndex(android.app.DownloadManager.COLUMN_STATUS));
+                    int total = cursor.getInt(cursor.getColumnIndex(android.app.DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+                    int downloaded = cursor.getInt(cursor.getColumnIndex(android.app.DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+                    int reason = cursor.getInt(cursor.getColumnIndex(android.app.DownloadManager.COLUMN_REASON));
+                    cursor.close();
+
+                    if (status == android.app.DownloadManager.STATUS_RUNNING) {
+                        int percent = total > 0 ? (downloaded * 100 / total) : 0;
+                        String dlMB = String.format("%.1f", downloaded / 1048576.0);
+                        String totalMB = total > 0 ? String.format("%.1f", total / 1048576.0) : "?";
+                        if (progressDialog != null && progressDialog.isShowing()) {
+                            android.widget.ProgressBar bar = progressDialog.findViewById(R.id.progress_bar);
+                            android.widget.TextView text = progressDialog.findViewById(R.id.progress_text);
+                            if (bar != null) bar.setProgress(percent);
+                            if (text != null) text.setText(percent + "%  (" + dlMB + " / " + totalMB + " MB)");
+                        }
+                        handler.postDelayed(this, 500);
+
+                    } else if (status == android.app.DownloadManager.STATUS_SUCCESSFUL) {
+                        if (progressDialog != null && progressDialog.isShowing()) progressDialog.dismiss();
+                        showInstallDialog(dm, newVersion);
+
+                    } else if (status == android.app.DownloadManager.STATUS_FAILED) {
+                        if (progressDialog != null && progressDialog.isShowing()) progressDialog.dismiss();
+                        String err = getError(reason);
+                        new com.google.android.material.dialog.MaterialAlertDialogBuilder(MainActivity.this)
+                                .setTitle("Download Failed")
+                                .setMessage(err)
+                                .setPositiveButton("Retry", (d, w) -> {
+                                    String url = "https://github.com/mlandvodlamini12-cloud/eswatini-cars/releases/latest/download/Eswatini-Cars.apk";
+                                    downloadUpdateInBackground(url, newVersion);
+                                })
+                                .setNegativeButton("Cancel", null)
+                                .show();
+                        updateDownloadId = -1;
+
+                    } else {
+                        handler.postDelayed(this, 500);
+                    }
+                } else {
+                    if (cursor != null) cursor.close();
+                    if (progressDialog != null && progressDialog.isShowing()) progressDialog.dismiss();
+                }
+            }
+        };
+        handler.post(poller);
+    }
+
+    private void showInstallDialog(android.app.DownloadManager dm, String newVersion) {
+        android.net.Uri apkUri = dm.getUriForDownloadedFile(updateDownloadId);
+        if (apkUri != null) {
+            new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                    .setTitle("Update Downloaded")
+                    .setMessage("Version " + newVersion + " is ready.\nTap Install to apply it now.")
+                    .setPositiveButton("Install", (d, w) -> {
+                        Intent installIntent = new Intent(Intent.ACTION_VIEW);
+                        installIntent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+                        installIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        startActivity(installIntent);
+                    })
+                    .setNegativeButton("Later", null)
+                    .show();
+        }
+        updateDownloadId = -1;
+    }
+
+    private String getError(int reason) {
+        switch (reason) {
+            case android.app.DownloadManager.ERROR_INSUFFICIENT_STORAGE:
+                return "Not enough storage. Delete some files and try again.";
+            case android.app.DownloadManager.ERROR_NETWORK:
+                return "Network error. Check your internet connection.";
+            case android.app.DownloadManager.ERROR_HTTP:
+                return "Server error. Try again in a few minutes.";
+            default:
+                return "Download failed (error " + reason + "). Try again.";
+        }
+    }
+
     private BroadcastReceiver downloadCompleteReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             long id = intent.getLongExtra(android.app.DownloadManager.EXTRA_DOWNLOAD_ID, -1);
             if (id == updateDownloadId && updateDownloadId != -1) {
-                // Download complete — get the file URI and prompt to install
                 android.app.DownloadManager dm =
                         (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-
-                // Get the content URI for the downloaded file
-                android.net.Uri apkUri = dm.getUriForDownloadedFile(updateDownloadId);
-
-                if (apkUri != null) {
-                    // Show "Download complete" dialog with Install button
-                    runOnUiThread(() -> {
-                        new AlertDialog.Builder(context)
-                                .setTitle("Update Downloaded")
-                                .setMessage("Version update has been downloaded. Tap Install to apply it now.")
-                                .setPositiveButton("Install", (d, w) -> {
-                                    Intent installIntent = new Intent(Intent.ACTION_VIEW);
-                                    installIntent.setDataAndType(apkUri, "application/vnd.android.package-archive");
-                                    installIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                                    installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                                    context.startActivity(installIntent);
-                                })
-                                .setNegativeButton("Later", (d, w) -> d.dismiss())
-                                .setCancelable(true)
-                                .show();
-                    });
-                }
-                updateDownloadId = -1;
+                if (progressDialog != null && progressDialog.isShowing()) progressDialog.dismiss();
+                showInstallDialog(dm, extractJsonString("", "latestVersionName"));
             }
         }
     };

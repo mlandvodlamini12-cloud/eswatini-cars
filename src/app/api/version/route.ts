@@ -10,11 +10,11 @@ import { NextResponse } from 'next/server'
 
 export async function GET() {
   return NextResponse.json({
-    latestVersionCode: 20,
-    latestVersionName: '1.3.7',
+    latestVersionCode: 21,
+    latestVersionName: '1.3.8',
     downloadUrl: 'https://github.com/mlandvodlamini12-cloud/eswatini-cars/releases/latest/download/Eswatini-Cars.apk',
     minRequiredVersionCode: 12,
-    releaseNotes: 'Native WhatsApp image sharing — car photo attached when sharing to WhatsApp Channel.',
+    releaseNotes: 'Modern Material dialogs + in-app download progress bar with percentage.',
   })
 }
 // Force re-deploy
