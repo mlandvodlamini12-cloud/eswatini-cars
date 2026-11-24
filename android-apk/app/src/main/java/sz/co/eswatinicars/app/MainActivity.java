@@ -644,8 +644,8 @@ public class MainActivity extends AppCompatActivity {
                         String dlMB = String.format("%.1f", downloaded / 1048576.0);
                         String totalMB = total > 0 ? String.format("%.1f", total / 1048576.0) : "?";
                         if (progressDialog != null && progressDialog.isShowing()) {
-                            android.widget.ProgressBar bar = progressDialog.findViewById(android.R.id.text1);
-                            android.widget.TextView text = progressDialog.findViewById(android.R.id.text2);
+                            android.widget.ProgressBar bar = (android.widget.ProgressBar) progressDialog.findViewById(android.R.id.text1);
+                            android.widget.TextView text = (android.widget.TextView) progressDialog.findViewById(android.R.id.text2);
                             if (bar != null) bar.setProgress(percent);
                             if (text != null) text.setText(percent + "%  (" + dlMB + " / " + totalMB + " MB)");
                         }
