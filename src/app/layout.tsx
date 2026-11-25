@@ -100,20 +100,15 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="ESWATINI CARS" />
         {/*
-          INLINE LOADING SCREEN — eliminates the white flash during page load.
-          This CSS + HTML is inlined directly in the <head> so it runs IMMEDIATELY
-          when the browser parses the HTML, BEFORE any external CSS or JS bundles
-          are downloaded/parsed. Without this, the browser shows a white screen
-          (default body background) until the Tailwind CSS bundle loads and
-          applies the `bg-background` class.
+          INLINE LOADING SCREEN — matches the native Android splash EXACTLY.
+          Shows a centered app-icon.png on solid navy (#0a1834), nothing else.
+          This visually matches res/drawable/splash_background.xml so the user
+          perceives ONE continuous splash screen, not native-then-web.
 
-          How it works:
-          1. The inline <style> sets the body background to navy (#0a1834) immediately
-          2. The inline <div id="initial-loader"> shows a branded spinner
-          3. When React hydrates and renders the actual app, this div gets replaced
-             naturally (React replaces the body content with the real app)
-          4. The loader CSS is scoped to #initial-loader so it doesn't conflict
-             with Tailwind classes
+          The inline <style> in <head> sets the body background to navy immediately,
+          BEFORE Tailwind CSS loads — so there's no white flash during page load.
+          The inline <div id="initial-loader"> renders the icon instantly when the
+          browser parses the body. /loader.js fades it out once React hydrates.
         */}
         <style dangerouslySetInnerHTML={{ __html: `
           /* Immediately set the body background to navy so there's no white flash.
@@ -125,8 +120,11 @@ export default function RootLayout({
             padding: 0;
             min-height: 100vh;
           }
-          /* The branded loading screen — shows a centered logo + spinner.
-             This div is inside <body> and gets replaced when React mounts. */
+          /* The web loader — shows ONLY a centered app icon on solid navy,
+             matching the native Android splash (res/drawable/splash_background.xml)
+             EXACTLY. No text, no spinner, no glow, no border. When the native
+             splash hands off to the WebView, the user sees an identical screen
+             and perceives ONE continuous splash, not two. */
           #initial-loader {
             position: fixed;
             inset: 0;
@@ -134,56 +132,20 @@ export default function RootLayout({
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(180deg, #0a1834 0%, #0f1f4a 100%);
-            color: #f1f5f9;
-            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            background-color: #0a1834;
             z-index: 9999;
           }
           #initial-loader .loader-logo {
             width: 120px;
             height: 120px;
-            border-radius: 50%;
-            overflow: hidden;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-bottom: 20px;
-            box-shadow: 0 0 40px rgba(56, 189, 248, 0.4);
-            border: 3px solid #38bdf8;
           }
           #initial-loader .loader-logo img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            border-radius: 50%;
-          }
-          #initial-loader .loader-text {
-            font-size: 14px;
-            font-weight: 600;
-            color: #f1f5f9;
-            letter-spacing: 0.05em;
-            margin-bottom: 4px;
-          }
-          #initial-loader .loader-subtext {
-            font-size: 11px;
-            color: #94a3b8;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-          }
-          #initial-loader .loader-spinner {
-            margin-top: 24px;
-            width: 32px;
-            height: 32px;
-            border: 3px solid rgba(56, 189, 248, 0.2);
-            border-top-color: #38bdf8;
-            border-radius: 50%;
-            animation: loader-spin 0.8s linear infinite;
-          }
-          @keyframes loader-spin {
-            to { transform: rotate(360deg); }
-          }
-          @media (prefers-reduced-motion: reduce) {
-            #initial-loader .loader-spinner { animation: none; }
+            width: 120px;
+            height: 120px;
+            object-fit: contain;
           }
         `}} />
         {/*
@@ -198,7 +160,7 @@ export default function RootLayout({
           The script:
           1. Registers the PWA service worker
           2. Removes the #initial-loader div after the page loads
-             (the loader shows a branded spinner while React hydrates)
+             (the loader shows the app icon while React hydrates)
         */}
         <script src="/loader.js" />
       </head>
@@ -207,17 +169,13 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         {/*
-          Inline loading screen — this HTML renders IMMEDIATELY when the browser
-          parses the body, before React hydrates. When React mounts, it renders
-          the app content (which is also in the SSR HTML, behind the loader).
-          The script below removes the loader once the page is fully loaded
-          so the user sees the actual app.
+          Inline loading screen — renders IMMEDIATELY when the browser parses the
+          body, before React hydrates. Shows ONLY the app icon on navy, matching
+          the native Android splash exactly. /loader.js fades it out once the
+          page is fully loaded so the user sees the actual app.
         */}
         <div id="initial-loader">
           <div class="loader-logo"><img src="/app-icon.png" alt="" /></div>
-          <div class="loader-text">ESWATINI CARS</div>
-          <div class="loader-subtext">Managed Vehicle Marketplace</div>
-          <div class="loader-spinner"></div>
         </div>
         {children}
         <Toaster />
